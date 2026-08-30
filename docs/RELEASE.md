@@ -15,10 +15,11 @@
 
 ## 已完成证据
 
-- 最终实现提交：`153f70ad694ba23af9ba62cbad116658be542fa4`；公开树审计通过 110 个文件。
+- 生产实现与镜像来源提交：`153f70ad694ba23af9ba62cbad116658be542fa4`；公开 GitHub tag `v0.0.1` 指向 `9b8e67cba2085ba840c42fa2343308dbe7e84813`，公开源码包完成 111 文件恢复验证。
 - Ruff、Python 30 项、Node 2 项、TypeScript 构建、生产依赖高危漏洞审计、迁移往返、
   合成烟雾链、固定模型加载和容器运行契约均通过。
-- 源码包 SHA-256：`9d9578d907d4f6bbc84219ddc0c3bf777a984e4f540e12d71b788fba7351e13c`。
+- 公开 Release 源码包 SHA-256：`0842fb268428a800dafc4be2a6bdf3487d0c3452c88adf4202817d98284acb66`；
+  另行保留的 110 文件私有首版源码恢复包 SHA-256 为 `9d9578d907d4f6bbc84219ddc0c3bf777a984e4f540e12d71b788fba7351e13c`。
 - 镜像归档 SHA-256：`d6c0cc5744e8517168485f2c1a617c341170b0e9fcfe12e03a44cdb5eaf14fc6`；
   目标镜像配置摘要为 `sha256:9c6a1661ff677abf4b5c53f18090b19a67b93a7586ed812cc0f95cb9ac0b9a1b`。
 - 私有模型恢复包已保存并校验，但因权重许可边界不进入 Git 或公开 Release。
