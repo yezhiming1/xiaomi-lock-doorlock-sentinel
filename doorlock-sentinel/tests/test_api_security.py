@@ -11,11 +11,12 @@ from doorlock_sentinel.models import (
     Base,
     FaceTrack,
     LoginThrottle,
+    Person,
     UnknownCluster,
     UnknownClusterMember,
 )
 from doorlock_sentinel.vector import pack_vector
-from doorlock_sentinel.web_data import LabelClusterRequest
+from doorlock_sentinel.web_data import OPERATION_LABELS, LabelClusterRequest
 
 
 def _migrate_for_test(settings):
@@ -46,13 +47,16 @@ def test_password_session_csrf_and_internal_boundary(settings):
         assert "HttpOnly" in accepted.headers["set-cookie"]
         assert "SameSite=strict" in accepted.headers["set-cookie"]
         assert client.get("/api/bootstrap").status_code == 200
-        assert client.put(
-            "/api/settings/notifications",
-            json={
-                "identity_notifications_enabled": False,
-                "risk_notifications_enabled": False,
-            },
-        ).status_code == 403
+        assert (
+            client.put(
+                "/api/settings/notifications",
+                json={
+                    "identity_notifications_enabled": False,
+                    "risk_notifications_enabled": False,
+                },
+            ).status_code
+            == 403
+        )
         updated = client.put(
             "/api/settings/notifications",
             headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"},
@@ -63,10 +67,13 @@ def test_password_session_csrf_and_internal_boundary(settings):
         )
         assert updated.status_code == 200
         assert client.get("/internal/outbox/claim?worker=test").status_code == 401
-        assert client.get(
-            "/internal/outbox/claim?worker=test",
-            headers={"X-Internal-Token": "test-internal-secret"},
-        ).status_code == 200
+        assert (
+            client.get(
+                "/internal/outbox/claim?worker=test",
+                headers={"X-Internal-Token": "test-internal-secret"},
+            ).status_code
+            == 200
+        )
 
 
 def test_security_headers_cover_static_console(settings):
@@ -93,6 +100,89 @@ def test_label_request_allows_omitted_or_blank_name():
     )
     assert omitted.display_name == ""
     assert blank.display_name == ""
+
+
+def test_supported_manual_operations_have_chinese_labels():
+    assert OPERATION_LABELS == {
+        "label_cluster": "确认人物",
+        "rename_person": "修改人物",
+        "assign_cluster_to_person": "并入已确认人物",
+        "merge_people": "合并已确认人物",
+        "merge_clusters": "合并待确认人物",
+        "split_cluster": "拆分待确认人物",
+        "cluster_false_positive": "标记误检",
+        "undo": "撤销操作",
+    }
+
+
+def test_cluster_can_be_assigned_to_person_and_operation_is_localized(settings):
+    _migrate_for_test(settings)
+    app = create_app(settings)
+    with TestClient(app, base_url="http://testserver") as client:
+        accepted = client.post(
+            "/api/session/login",
+            json={"password": "correct horse battery staple"},
+        )
+        csrf = accepted.json()["csrf_token"]
+        with app.state.runtime.database.session() as session:
+            person = Person(display_name="已确认人物甲", relationship="neighbor")
+            session.add(person)
+            session.flush()
+            person_id = person.id
+            event = create_event(session, 51)
+            vector = np.array([1, 0, 0, 0], dtype=np.float32)
+            cluster = UnknownCluster(
+                model_id=settings.model_id,
+                centroid=pack_vector(vector),
+                embedding_dimension=4,
+                status="review_ready",
+                member_count=1,
+                event_count=1,
+                distinct_days=1,
+                high_quality_count=1,
+            )
+            session.add(cluster)
+            session.flush()
+            cluster_id = cluster.id
+            track = FaceTrack(
+                event_id=event.id,
+                track_index=0,
+                model_id=settings.model_id,
+                embedding=pack_vector(vector),
+                embedding_dimension=4,
+                quality_score=0.93,
+                unknown_cluster_id=cluster.id,
+            )
+            session.add(track)
+            session.flush()
+            session.add(
+                UnknownClusterMember(
+                    cluster_id=cluster.id,
+                    track_id=track.id,
+                    event_id=event.id,
+                    event_day=event.occurred_at.date().isoformat(),
+                    similarity=0.99,
+                    quality_score=track.quality_score,
+                )
+            )
+
+        assigned = client.post(
+            f"/api/clusters/{cluster_id}/assign-person",
+            headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"},
+            json={
+                "target_person_id": person_id,
+                "idempotency_key": "api-assign-cluster-person-0001",
+            },
+        )
+        assert assigned.status_code == 200
+
+        operations = client.get("/api/operations")
+        assert operations.status_code == 200
+        item = operations.json()["items"][0]
+        assert item["operation"] == "assign_cluster_to_person"
+        assert item["operation_label"] == "并入已确认人物"
+        assert "已确认人物：已确认人物甲" in item["subject_label"]
+        assert cluster_id not in item["subject_label"]
 
 
 def test_cluster_review_includes_video_and_supports_byte_ranges(settings):

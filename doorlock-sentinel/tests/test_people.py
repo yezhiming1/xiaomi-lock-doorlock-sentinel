@@ -6,13 +6,16 @@ from conftest import create_event
 
 from doorlock_sentinel.models import (
     CannotLink,
+    FacePrototype,
     FaceTrack,
     ManualOperation,
     Person,
+    PersonObservation,
     UnknownCluster,
     UnknownClusterMember,
 )
 from doorlock_sentinel.people import (
+    assign_cluster_to_person,
     label_cluster,
     merge_people,
     rename_person,
@@ -71,6 +74,7 @@ def _cluster_with_tracks(
     cluster.event_count = count
     cluster.distinct_days = count
     cluster.high_quality_count = count
+    session.flush()
     return cluster
 
 
@@ -97,10 +101,7 @@ def test_label_cluster_is_idempotent_and_undoable(database, settings):
         person = session.get(Person, result["person_id"])
         assert person and person.relationship == "courier"
         operation_id = (
-            session.query(ManualOperation)
-            .filter_by(idempotency_key="label-cluster-0001")
-            .one()
-            .id
+            session.query(ManualOperation).filter_by(idempotency_key="label-cluster-0001").one().id
         )
         undone = undo_operation(
             session,
@@ -196,6 +197,109 @@ def test_blank_rename_uses_selected_relationship(database):
         assert result["relationship"] == "visitor"
 
 
+def test_cluster_can_be_assigned_to_existing_person_and_undone(database, settings):
+    with database.session() as session:
+        person = Person(display_name="已确认人物甲", relationship="neighbor")
+        session.add(person)
+        session.flush()
+        cluster = _cluster_with_tracks(session, settings, start_index=500)
+
+        result = assign_cluster_to_person(
+            session,
+            settings,
+            cluster_id=cluster.id,
+            target_person_id=person.id,
+            idempotency_key="assign-cluster-person-0001",
+        )
+        replay = assign_cluster_to_person(
+            session,
+            settings,
+            cluster_id=cluster.id,
+            target_person_id=person.id,
+            idempotency_key="assign-cluster-person-0001",
+        )
+
+        assert replay == result
+        assert result["status"] == "assigned"
+        assert cluster.status == "labeled"
+        assert cluster.labeled_person_id == person.id
+        assigned_tracks = list(
+            session.query(FaceTrack).filter_by(person_id=person.id).all()
+        )
+        assert len(assigned_tracks) == 3, [
+            (track.id, track.person_id, track.unknown_cluster_id)
+            for track in session.query(FaceTrack).all()
+        ]
+        assert session.query(PersonObservation).filter_by(person_id=person.id).count() == 3
+        assert session.query(FacePrototype).filter_by(person_id=person.id).count() >= 1
+        assert person.matched_events == 3
+        assert person.distinct_days == 3
+
+        operation = (
+            session.query(ManualOperation)
+            .filter_by(idempotency_key="assign-cluster-person-0001")
+            .one()
+        )
+        undo_operation(
+            session,
+            settings,
+            operation_id=operation.id,
+            idempotency_key="undo-assign-cluster-person-0001",
+        )
+
+        assert session.get(Person, person.id) is person
+        assert cluster.status == "review_ready"
+        assert cluster.labeled_person_id is None
+        assert session.query(FaceTrack).filter_by(person_id=person.id).count() == 0
+        assert session.query(PersonObservation).filter_by(person_id=person.id).count() == 0
+        assert session.query(FacePrototype).filter_by(person_id=person.id).count() == 0
+        assert person.matched_events == 0
+        assert person.distinct_days == 0
+
+
+def test_cluster_seen_with_person_cannot_be_assigned(database, settings):
+    with database.session() as session:
+        person = Person(display_name="已确认人物乙", relationship="neighbor")
+        session.add(person)
+        session.flush()
+        cluster = _cluster_with_tracks(session, settings, start_index=600)
+        cluster_track = session.scalar(
+            session.query(FaceTrack)
+            .filter_by(unknown_cluster_id=cluster.id)
+            .order_by(FaceTrack.created_at)
+            .statement
+        )
+        person_track = FaceTrack(
+            event_id=cluster_track.event_id,
+            track_index=1,
+            model_id=settings.model_id,
+            embedding=cluster_track.embedding,
+            embedding_dimension=cluster_track.embedding_dimension,
+            quality_score=0.9,
+            person_id=person.id,
+        )
+        session.add(person_track)
+        session.flush()
+        left, right = sorted((cluster_track.id, person_track.id))
+        session.add(
+            CannotLink(
+                left_track_id=left,
+                right_track_id=right,
+                reason="same_frame",
+            )
+        )
+        session.flush()
+
+        with pytest.raises(ValueError, match="同一画面"):
+            assign_cluster_to_person(
+                session,
+                settings,
+                cluster_id=cluster.id,
+                target_person_id=person.id,
+                idempotency_key="assign-cluster-person-conflict-0001",
+            )
+
+
 def test_people_seen_together_cannot_be_merged(database, settings):
     vector = np.array([1, 0, 0, 0], dtype=np.float32)
     with database.session() as session:
@@ -205,14 +309,14 @@ def test_people_seen_together_cannot_be_merged(database, settings):
         session.flush()
         for index, person in enumerate(people):
             track = FaceTrack(
-                    event_id=event.id,
-                    track_index=index,
-                    model_id=settings.model_id,
-                    embedding=pack_vector(vector),
-                    embedding_dimension=4,
-                    quality_score=0.9,
-                    person_id=person.id,
-                )
+                event_id=event.id,
+                track_index=index,
+                model_id=settings.model_id,
+                embedding=pack_vector(vector),
+                embedding_dimension=4,
+                quality_score=0.9,
+                person_id=person.id,
+            )
             session.add(track)
             session.flush()
         tracks = list(session.query(FaceTrack).order_by(FaceTrack.track_index))
