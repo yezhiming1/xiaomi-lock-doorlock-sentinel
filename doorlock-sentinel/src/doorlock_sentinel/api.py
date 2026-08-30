@@ -72,7 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="门锁证据台",
-        version="0.0.1",
+        version="0.0.2",
         docs_url=None if settings.environment == "production" else "/docs",
         redoc_url=None,
         openapi_url=None if settings.environment == "production" else "/openapi.json",
@@ -117,7 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "status": "ok",
             "service": "doorlock-sentinel",
-            "version": "0.0.1",
+            "version": "0.0.2",
             "time": datetime.now(timezone.utc).isoformat(),
         }
 

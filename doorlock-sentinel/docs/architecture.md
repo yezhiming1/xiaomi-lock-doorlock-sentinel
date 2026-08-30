@@ -83,7 +83,7 @@ SQLite WAL（Python 单写者）
 
 ## 资源边界
 
-V0.0.1 只允许一个录像推理任务。默认每秒抽取 2 帧、每段最多 120 帧，ONNX Runtime 使用 `2` 个 intra-op 和 `1` 个 inter-op 线程。Node bot 与清单协调器是轻量 I/O 任务，不增加第二条推理流水线。
+V0.0.2 只允许一个录像推理任务。默认每秒抽取 2 帧、每段最多 120 帧，ONNX Runtime 使用 `2` 个 intra-op 和 `1` 个 inter-op 线程。Node bot 与清单协调器是轻量 I/O 任务，不增加第二条推理流水线。
 
 ## 明确外部边界
 

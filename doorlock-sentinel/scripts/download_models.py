@@ -24,7 +24,7 @@ def download(url: str, target: Path) -> None:
     temporary = target.with_suffix(target.suffix + ".download")
     request = urllib.request.Request(
         url,
-        headers={"User-Agent": "doorlock-sentinel-model-installer/0.0.1"},
+        headers={"User-Agent": "doorlock-sentinel-model-installer/0.0.2"},
     )
     with urllib.request.urlopen(request, timeout=600) as response, temporary.open("wb") as output:
         shutil.copyfileobj(response, output, length=1024 * 1024)

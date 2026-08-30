@@ -48,7 +48,7 @@ class IdempotentRequest(BaseModel):
 
 
 class LabelClusterRequest(IdempotentRequest):
-    display_name: str = Field(min_length=1, max_length=128)
+    display_name: str = Field(default="", max_length=128)
     relationship: str = Field(min_length=1, max_length=32)
 
 
@@ -197,7 +197,7 @@ def bootstrap(
         .limit(1)
     )
     return {
-        "version": "0.0.1",
+        "version": "0.0.2",
         "counts": {
             "events": scalar_count(Event),
             "people": scalar_count(Person, Person.status != "merged"),
@@ -331,8 +331,9 @@ def clusters(
     for cluster in rows:
         members = list(
             context.database_session.execute(
-                select(UnknownClusterMember, FaceTrack)
+                select(UnknownClusterMember, FaceTrack, Event)
                 .join(FaceTrack, UnknownClusterMember.track_id == FaceTrack.id)
+                .join(Event, UnknownClusterMember.event_id == Event.id)
                 .where(UnknownClusterMember.cluster_id == cluster.id)
                 .order_by(FaceTrack.quality_score.desc())
             ).all()
@@ -354,8 +355,11 @@ def clusters(
                         "quality_score": round(track.quality_score, 4),
                         "face_url": _artifact_url(track.best_face_artifact_id),
                         "preview_url": _artifact_url(track.best_frame_artifact_id),
+                        "video_url": _artifact_url(event.source_artifact_id),
+                        "occurred_at": _iso(event.occurred_at),
+                        "duration_seconds": round(event.duration_seconds, 2),
                     }
-                    for member, track in members
+                    for member, track, event in members
                 ],
             }
         )
@@ -425,7 +429,7 @@ def system(
     )
     return {
         "service": {
-            "version": "0.0.1",
+            "version": "0.0.2",
             "analysis_ready": context.runtime.pipeline.ready,
             "analysis_error": context.runtime.pipeline.readiness_error,
             "database": "ready",

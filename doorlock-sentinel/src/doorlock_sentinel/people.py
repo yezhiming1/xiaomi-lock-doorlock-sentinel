@@ -27,15 +27,64 @@ from .recognition import (
 )
 from .vector import pack_vector, unpack_vector
 
-RELATIONSHIPS = {
-    "family",
-    "neighbor",
-    "courier",
-    "cleaner",
-    "visitor",
-    "stranger",
-    "other",
+RELATIONSHIP_LABELS = {
+    "family": "家人",
+    "neighbor": "邻居",
+    "courier": "快递员",
+    "cleaner": "保洁",
+    "visitor": "访客",
+    "stranger": "陌生人",
+    "other": "其他",
 }
+RELATIONSHIPS = frozenset(RELATIONSHIP_LABELS)
+
+
+def _automatic_display_name(
+    session: Session,
+    relationship: str,
+    *,
+    current_person: Person | None = None,
+) -> str:
+    label = RELATIONSHIP_LABELS[relationship]
+    prefix = f"{label} "
+    if (
+        current_person is not None
+        and current_person.relationship == relationship
+        and current_person.display_name.startswith(prefix)
+    ):
+        suffix = current_person.display_name.removeprefix(prefix)
+        if suffix.isascii() and suffix.isdigit() and int(suffix) >= 1:
+            return current_person.display_name
+
+    maximum = 0
+    for existing_name in session.scalars(
+        select(Person.display_name).where(Person.relationship == relationship)
+    ):
+        if not existing_name.startswith(prefix):
+            continue
+        suffix = existing_name.removeprefix(prefix)
+        if suffix.isascii() and suffix.isdigit() and int(suffix) >= 1:
+            maximum = max(maximum, int(suffix))
+    return f"{prefix}{maximum + 1}"
+
+
+def _resolve_display_name(
+    session: Session,
+    display_name: str,
+    relationship: str,
+    *,
+    current_person: Person | None = None,
+) -> str:
+    name = display_name.strip()
+    if name:
+        if len(name) > 128:
+            raise ValueError("人物名称长度不能超过 128 个字符")
+        return name
+    return _automatic_display_name(
+        session,
+        relationship,
+        current_person=current_person,
+    )
 
 
 def _has_cannot_link(
@@ -148,11 +197,9 @@ def label_cluster(
     replay = _existing_result(session, idempotency_key)
     if replay is not None:
         return replay
-    name = display_name.strip()
-    if not 1 <= len(name) <= 128:
-        raise ValueError("人物名称长度应为 1 至 128 个字符")
     if relationship not in RELATIONSHIPS:
         raise ValueError("不支持的人物关系")
+    name = _resolve_display_name(session, display_name, relationship)
     cluster = session.get(UnknownCluster, cluster_id)
     if not cluster or cluster.status in {"merged", "false_positive"}:
         raise ValueError("未知人物簇不存在或不可标记")
@@ -228,11 +275,15 @@ def rename_person(
     person = session.get(Person, person_id)
     if not person or person.status == "merged":
         raise ValueError("人物不存在或已合并")
-    name = display_name.strip()
-    if not 1 <= len(name) <= 128:
-        raise ValueError("人物名称长度应为 1 至 128 个字符")
     if relationship is not None and relationship not in RELATIONSHIPS:
         raise ValueError("不支持的人物关系")
+    resolved_relationship = relationship or person.relationship
+    name = _resolve_display_name(
+        session,
+        display_name,
+        resolved_relationship,
+        current_person=person,
+    )
     before = {
         "display_name": person.display_name,
         "relationship": person.relationship,

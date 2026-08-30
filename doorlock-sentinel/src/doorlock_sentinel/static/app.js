@@ -4,6 +4,7 @@ const state = {
   events: [],
   selectedEvent: null,
   selectedTrack: 0,
+  selectedClusterTracks: {},
   people: [],
   clusters: [],
   modalHandler: null,
@@ -219,21 +220,60 @@ async function renderEvents() {
   content.innerHTML = `${summary(bootstrap)}<section class="workspace" aria-label="事件与证据"><div class="ledger"><div class="ledger-head"><span>时间</span><span>事件</span><span>结果</span></div>${state.events.map(eventRow).join("")}</div>${eventDetail(state.selectedEvent)}</section>`;
 }
 
-function face(url, label) {
-  return url ? `<img class="face-frame" src="${esc(url)}" alt="${esc(label)}" loading="lazy">` : '<div class="face-frame media-placeholder">无图</div>';
+function face(url, label, className = "face-frame") {
+  if (!url) return `<div class="${esc(className)} media-placeholder">无图</div>`;
+  return `<img class="${esc(className)}" src="${esc(url)}" alt="${esc(label)}" loading="lazy">`;
+}
+
+function selectedClusterTrack(cluster) {
+  const selectedId = state.selectedClusterTracks[cluster.id];
+  return cluster.tracks.find((track) => track.id === selectedId) || cluster.tracks[0] || null;
+}
+
+function clusterCard(cluster) {
+  const selected = selectedClusterTrack(cluster);
+  const selectedIndex = selected ? cluster.tracks.findIndex((track) => track.id === selected.id) : -1;
+  const sampleNumber = selectedIndex >= 0 ? selectedIndex + 1 : null;
+  const poster = selected?.preview_url ? ` poster="${esc(selected.preview_url)}"` : "";
+  const video = selected?.video_url
+    ? `<video class="cluster-video" controls preload="none" playsinline src="${esc(selected.video_url)}"${poster} aria-label="未知人物样本 ${sampleNumber} 对应录像"></video>`
+    : '<div class="cluster-video media-placeholder">对应录像已不在本地</div>';
+  const samples = cluster.tracks.map((track, index) => {
+    const label = `未知人物样本 ${index + 1}`;
+    return `<button type="button" class="face-choice" data-action="select-cluster-track" data-id="${esc(cluster.id)}" data-track-id="${esc(track.id)}" aria-pressed="${track.id === selected?.id}" aria-label="查看样本 ${index + 1} 的大图和录像">${face(track.face_url || track.preview_url, label, "cluster-thumb")}</button>`;
+  }).join("");
+  const mergeAction = state.clusters.length > 1
+    ? `<button class="button quiet small" data-action="merge-cluster" data-id="${esc(cluster.id)}">合并到…</button>`
+    : "";
+  const splitAction = cluster.tracks.length > 1
+    ? `<button class="button quiet small" data-action="split-cluster" data-id="${esc(cluster.id)}">拆分错分样本</button>`
+    : "";
+  const largeFaceLabel = selected ? `未知人物样本 ${sampleNumber} 大图` : "暂无可用人物大图";
+  const quality = selected ? `人脸质量 ${Math.round(selected.quality_score * 100)}%` : "暂无可用样本";
+  const videoMeta = selected ? `${esc(formatDate(selected.occurred_at, true))} · ${selected.duration_seconds} 秒` : "没有对应录像";
+  return `<article class="cluster-card" data-cluster-id="${esc(cluster.id)}">
+    <div class="cluster-head"><div><h3>未知人物 ${esc(cluster.id.slice(-6))}</h3><p>${cluster.event_count} 次录像 · ${cluster.distinct_days} 天 · ${cluster.high_quality_count} 张高质量样本</p></div><span class="status pending">待确认</span></div>
+    <div class="cluster-review"><div class="cluster-primary">${face(selected?.face_url || selected?.preview_url, largeFaceLabel, "cluster-face-large")}<strong>样本 ${sampleNumber || "—"}</strong><span>${quality}</span></div><div class="cluster-video-wrap">${video}<p>${videoMeta}</p></div></div>
+    <div class="face-strip" role="group" aria-label="选择人物簇样本">${samples}</div>
+    <div class="card-actions"><button class="button primary small" data-action="label-cluster" data-id="${esc(cluster.id)}">核对并确认</button>${mergeAction}${splitAction}<button class="button quiet small" data-action="false-positive" data-id="${esc(cluster.id)}">标记误检</button></div>
+  </article>`;
+}
+
+function renderPeopleContent() {
+  const peopleHtml = state.people.length
+    ? `<div class="person-grid">${state.people.map((person) => `<article class="person-card">${face(person.face_url, person.display_name)}<h3>${esc(person.display_name)}</h3><p>${esc(relationshipLabels[person.relationship] || person.relationship)} · ${person.matched_events} 次 · ${person.distinct_days} 天</p><div class="card-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
+    : '<div class="empty"><strong>还没有已确认人物</strong><p>确认下方未知人物簇后，会在这里持续积累清晰代表样本。</p></div>';
+  const clustersHtml = state.clusters.length
+    ? state.clusters.map(clusterCard).join("")
+    : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p></div>';
+  content.innerHTML = `<div class="section-head"><div><h2>已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div></div>${peopleHtml}<div class="section-head"><div><h2>待确认人物簇</h2><p>选择样本查看大图和对应录像；多人同框仍保持独立。</p></div></div>${clustersHtml}`;
 }
 
 async function renderPeople() {
   const [peopleData, clusterData] = await Promise.all([api("/api/people"), api("/api/clusters")]);
   state.people = peopleData.items;
   state.clusters = clusterData.items;
-  const peopleHtml = state.people.length
-    ? `<div class="person-grid">${state.people.map((person) => `<article class="person-card">${face(person.face_url, person.display_name)}<h3>${esc(person.display_name)}</h3><p>${esc(relationshipLabels[person.relationship] || person.relationship)} · ${person.matched_events} 次 · ${person.distinct_days} 天</p><div class="card-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
-    : '<div class="empty"><strong>还没有已确认人物</strong><p>给下方未知人物簇命名后，会在这里持续积累清晰代表样本。</p></div>';
-  const clustersHtml = state.clusters.length
-    ? state.clusters.map((cluster) => `<article class="cluster-card"><div class="cluster-head"><div><h3>未知人物 ${esc(cluster.id.slice(-6))}</h3><p>${cluster.event_count} 次录像 · ${cluster.distinct_days} 天 · ${cluster.high_quality_count} 张高质量样本</p></div><span class="status pending">待确认</span></div><div class="face-strip">${cluster.tracks.slice(0, 12).map((track) => `<span class="face-choice">${face(track.face_url, "未知人物样本")}</span>`).join("")}</div><div class="card-actions"><button class="button primary small" data-action="label-cluster" data-id="${esc(cluster.id)}">确认并命名</button>${state.clusters.length > 1 ? `<button class="button quiet small" data-action="merge-cluster" data-id="${esc(cluster.id)}">合并到…</button>` : ""}${cluster.tracks.length > 1 ? `<button class="button quiet small" data-action="split-cluster" data-id="${esc(cluster.id)}">拆分错分样本</button>` : ""}<button class="button quiet small" data-action="false-positive" data-id="${esc(cluster.id)}">标记误检</button></div></article>`).join("")
-    : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p></div>';
-  content.innerHTML = `<div class="section-head"><div><h2>已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div></div>${peopleHtml}<div class="section-head"><div><h2>待确认人物簇</h2><p>多人同框保持独立；若系统错分，可手工拆分并撤销。</p></div></div>${clustersHtml}`;
+  renderPeopleContent();
 }
 
 function tableRows(items, columns) {
@@ -308,6 +348,22 @@ function relationshipSelect(selected = "other") {
   return `<select id="modal-relationship">${Object.entries(relationshipLabels).map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("")}</select>`;
 }
 
+function optionalNameField(value = "") {
+  return `<div class="field"><label for="modal-name">人物名称（可选）</label><input id="modal-name" maxlength="128" value="${esc(value)}" autocomplete="off" aria-describedby="modal-name-hint"><p class="field-hint" id="modal-name-hint"></p></div>`;
+}
+
+function updateAutomaticNameHint() {
+  const relationship = $("#modal-relationship");
+  const hint = $("#modal-name-hint");
+  if (!relationship || !hint) return;
+  const update = () => {
+    const label = relationshipLabels[relationship.value] || "人物";
+    hint.textContent = `可以留空；系统会按顺序自动命名为“${label} 1”“${label} 2”等。`;
+  };
+  relationship.addEventListener("change", update);
+  update();
+}
+
 function openModal(title, body, submitLabel, handler) {
   $("#modal-title").textContent = title;
   $("#modal-body").innerHTML = body;
@@ -315,6 +371,7 @@ function openModal(title, body, submitLabel, handler) {
   $("#modal-error").textContent = "";
   state.modalHandler = handler;
   modal.showModal();
+  updateAutomaticNameHint();
   setTimeout(() => modal.querySelector("input, select")?.focus(), 0);
 }
 
@@ -326,14 +383,14 @@ async function mutate(path, method, body, message) {
 }
 
 function labelCluster(clusterId) {
-  openModal("确认这个人物", `<div class="field"><label for="modal-name">人物名称</label><input id="modal-name" maxlength="128" autocomplete="off" required></div><div class="field"><label for="modal-relationship">与您家的关系</label>${relationshipSelect("other")}</div>`, "保存并开始学习", async () => {
+  openModal("确认这个人物", `${optionalNameField()}<div class="field"><label for="modal-relationship">与您家的关系</label>${relationshipSelect("other")}</div>`, "保存并开始学习", async () => {
     await mutate(`/api/clusters/${clusterId}/label`, "POST", { display_name: $("#modal-name").value, relationship: $("#modal-relationship").value, idempotency_key: idempotency() }, "人物已确认，后续清晰样本会继续积累");
   });
 }
 
 function renamePerson(personId) {
   const person = state.people.find((item) => item.id === personId) || state.selectedEvent?.tracks?.find((track) => track.person?.id === personId)?.person;
-  openModal("修改人物信息", `<div class="field"><label for="modal-name">人物名称</label><input id="modal-name" maxlength="128" value="${esc(person?.display_name || "")}" required></div><div class="field"><label for="modal-relationship">与您家的关系</label>${relationshipSelect(person?.relationship || "other")}</div>`, "保存修改", async () => {
+  openModal("修改人物信息", `${optionalNameField(person?.display_name || "")}<div class="field"><label for="modal-relationship">与您家的关系</label>${relationshipSelect(person?.relationship || "other")}</div>`, "保存修改", async () => {
     await mutate(`/api/people/${personId}/rename`, "POST", { display_name: $("#modal-name").value, relationship: $("#modal-relationship").value, idempotency_key: idempotency() }, "人物信息已更新");
   });
 }
@@ -389,6 +446,18 @@ document.addEventListener("click", async (event) => {
     if (action === "reload") await loadRoute();
     else if (action === "select-event") { state.selectedEvent = state.events.find((item) => item.id === id); state.selectedTrack = 0; await renderEvents(); }
     else if (action === "select-track") { state.selectedTrack = Number(target.dataset.index); await renderEvents(); }
+    else if (action === "select-cluster-track") {
+      const cluster = state.clusters.find((item) => item.id === id);
+      const card = target.closest(".cluster-card");
+      if (!cluster || !card || !cluster.tracks.some((track) => track.id === target.dataset.trackId)) return;
+      state.selectedClusterTracks[id] = target.dataset.trackId;
+      const template = document.createElement("template");
+      template.innerHTML = clusterCard(cluster).trim();
+      const replacement = template.content.firstElementChild;
+      card.replaceWith(replacement);
+      const selectedButton = [...replacement.querySelectorAll('[data-action="select-cluster-track"]')].find((button) => button.dataset.trackId === target.dataset.trackId);
+      selectedButton?.focus({ preventScroll: true });
+    }
     else if (action === "label-cluster") labelCluster(id);
     else if (action === "rename-person") renamePerson(id);
     else if (action === "merge-person") mergePerson(id);
