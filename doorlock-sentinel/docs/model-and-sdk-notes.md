@@ -2,7 +2,7 @@
 
 ## 人脸模型
 
-V0.0.1 固定使用 InsightFace `buffalo_m` 包中的：
+V0.0.2 固定使用 InsightFace `buffalo_m` 包中的：
 
 - 人脸检测：SCRFD 2.5G，文件 `det_2.5g.onnx`。
 - 人脸特征：ArcFace R50，文件 `w600k_r50.onnx`。

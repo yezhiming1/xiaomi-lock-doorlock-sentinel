@@ -1,8 +1,8 @@
 # 交付状态
 
-版本：`V0.0.1`
+版本：`V0.0.2`
 
-当前状态：`RELEASED / DEPLOYED / TRAINING`
+当前状态：`RELEASE CANDIDATE / TRAINING`
 
 已具备的聚焦证据：
 

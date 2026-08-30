@@ -1,9 +1,44 @@
 from __future__ import annotations
 
 import ast
+import json
+import tomllib
 from pathlib import Path
 
+from doorlock_sentinel import __version__
+
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_release_version_surfaces_are_consistent():
+    version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))[
+        "project"
+    ]["version"]
+    package = json.loads(
+        (ROOT / "services" / "wecom-bot" / "package.json").read_text(encoding="utf-8")
+    )
+    package_lock = json.loads(
+        (ROOT / "services" / "wecom-bot" / "package-lock.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert version == "0.0.2"
+    assert __version__ == version
+    assert package["version"] == version
+    assert package_lock["version"] == version
+    assert package_lock["packages"][""]["version"] == version
+    assert f"image: doorlock-sentinel:{version}" in (
+        ROOT / "compose.yaml"
+    ).read_text(encoding="utf-8")
+    assert f'org.opencontainers.image.version="{version}"' in (
+        ROOT / "Dockerfile"
+    ).read_text(encoding="utf-8")
+    index = (ROOT / "src" / "doorlock_sentinel" / "static" / "index.html").read_text(
+        encoding="utf-8"
+    )
+    assert f"/app.css?v={version}" in index
+    assert f"/app.js?v={version}" in index
 
 
 def test_container_exposes_only_the_host_loopback_boundary():

@@ -12,11 +12,22 @@ from doorlock_sentinel.models import (
     UnknownCluster,
     UnknownClusterMember,
 )
-from doorlock_sentinel.people import label_cluster, merge_people, undo_operation
+from doorlock_sentinel.people import (
+    label_cluster,
+    merge_people,
+    rename_person,
+    undo_operation,
+)
 from doorlock_sentinel.vector import pack_vector
 
 
-def _cluster_with_tracks(session, settings, count: int = 3) -> UnknownCluster:
+def _cluster_with_tracks(
+    session,
+    settings,
+    count: int = 3,
+    *,
+    start_index: int = 100,
+) -> UnknownCluster:
     vector = np.array([1, 0, 0, 0], dtype=np.float32)
     cluster = UnknownCluster(
         model_id=settings.model_id,
@@ -31,7 +42,7 @@ def _cluster_with_tracks(session, settings, count: int = 3) -> UnknownCluster:
     for index in range(count):
         event = create_event(
             session,
-            100 + index,
+            start_index + index,
             datetime(2026, 8, 27, tzinfo=timezone.utc) + timedelta(days=index),
         )
         track = FaceTrack(
@@ -99,6 +110,90 @@ def test_label_cluster_is_idempotent_and_undoable(database, settings):
         )
         assert undone["status"] == "undone"
         assert cluster.status == "review_ready"
+
+
+def test_blank_names_are_numbered_by_relationship(database, settings):
+    with database.session() as session:
+        first_cluster = _cluster_with_tracks(
+            session,
+            settings,
+            start_index=200,
+        )
+        first = label_cluster(
+            session,
+            settings,
+            cluster_id=first_cluster.id,
+            display_name="",
+            relationship="courier",
+            idempotency_key="label-cluster-auto-0001",
+        )
+        second_cluster = _cluster_with_tracks(
+            session,
+            settings,
+            start_index=300,
+        )
+        second = label_cluster(
+            session,
+            settings,
+            cluster_id=second_cluster.id,
+            display_name="   ",
+            relationship="courier",
+            idempotency_key="label-cluster-auto-0002",
+        )
+
+        assert first["display_name"] == "快递员 1"
+        assert second["display_name"] == "快递员 2"
+
+        unchanged = rename_person(
+            session,
+            person_id=second["person_id"],
+            display_name="",
+            relationship="courier",
+            idempotency_key="rename-person-auto-0001",
+        )
+        assert unchanged["display_name"] == "快递员 2"
+
+
+def test_blank_name_continues_historical_relationship_number(database, settings):
+    with database.session() as session:
+        session.add(
+            Person(
+                display_name="邻居 4",
+                relationship="neighbor",
+                status="merged",
+            )
+        )
+        cluster = _cluster_with_tracks(
+            session,
+            settings,
+            start_index=400,
+        )
+        result = label_cluster(
+            session,
+            settings,
+            cluster_id=cluster.id,
+            display_name="",
+            relationship="neighbor",
+            idempotency_key="label-cluster-auto-history-0001",
+        )
+        assert result["display_name"] == "邻居 5"
+
+
+def test_blank_rename_uses_selected_relationship(database):
+    with database.session() as session:
+        person = Person(display_name="临时称呼", relationship="other")
+        session.add(person)
+        session.flush()
+
+        result = rename_person(
+            session,
+            person_id=person.id,
+            display_name="",
+            relationship="visitor",
+            idempotency_key="rename-person-auto-relationship-0001",
+        )
+        assert result["display_name"] == "访客 1"
+        assert result["relationship"] == "visitor"
 
 
 def test_people_seen_together_cannot_be_merged(database, settings):

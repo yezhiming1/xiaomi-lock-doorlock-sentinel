@@ -1,6 +1,6 @@
 # 架构入口
 
-Doorlock Sentinel `V0.0.1` 的权威架构说明位于：
+Doorlock Sentinel `V0.0.2` 的权威架构说明位于：
 
 - [`doorlock-sentinel/docs/architecture.md`](doorlock-sentinel/docs/architecture.md)
 - [`doorlock-sentinel/docs/security.md`](doorlock-sentinel/docs/security.md)
