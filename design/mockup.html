@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>门锁观察簿 · 事件</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2f6fa;
+      --sheet: #fbfdff;
+      --ink: #24364b;
+      --muted: #64758a;
+      --rule: #cbd6e1;
+      --blue: #245b9b;
+      --blue-soft: #dce9f6;
+      --stamp: #c74732;
+      --stamp-soft: #fae6e1;
+      --green: #29765a;
+      --green-soft: #dff0e8;
+      --amber: #8b650f;
+      --amber-soft: #f7edce;
+      --focus: #0b69c7;
+      --radius: 10px;
+      --ease: cubic-bezier(.23,1,.32,1);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--paper); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(36,54,75,.025) 1px, transparent 1px),
+        var(--paper);
+      background-size: 100% 28px;
+      font-family: "Noto Sans SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    button, input { font: inherit; }
+    button { min-height: 44px; cursor: pointer; }
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--focus) 45%, transparent);
+      outline-offset: 2px;
+    }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 216px minmax(0,1fr); }
+    .rail {
+      position: sticky; top: 0; height: 100vh;
+      display: flex; flex-direction: column;
+      padding: 28px 18px 20px;
+      background: #e4edf5;
+      border-right: 1px solid #b8c7d6;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; margin: 0 8px 36px; }
+    .brand-mark {
+      width: 36px; height: 42px; border: 2px solid var(--ink); border-radius: 16px 16px 8px 8px;
+      position: relative; background: var(--sheet);
+    }
+    .brand-mark::after { content:""; position:absolute; width:5px; height:5px; border-radius:50%; background:var(--stamp); right:7px; top:18px; }
+    .brand strong { display:block; font-size:17px; letter-spacing:.03em; }
+    .brand small { color:var(--muted); font-size:12px; }
+    nav { display:grid; gap:6px; }
+    nav a {
+      min-height:46px; display:flex; align-items:center; gap:11px; padding:0 12px;
+      color:var(--muted); text-decoration:none; border-radius:8px; font-weight:650;
+    }
+    nav a svg { width:20px; height:20px; stroke-width:1.8; }
+    nav a[aria-current="page"] { color:var(--ink); background:var(--sheet); box-shadow: inset 3px 0 var(--blue); }
+    .rail-note { margin-top:auto; padding:14px 12px 0; border-top:1px solid #b8c7d6; color:var(--muted); font-size:12px; }
+    .rail-note strong { display:block; color:var(--green); font-size:13px; margin-bottom:3px; }
+    main { min-width:0; padding:32px clamp(22px,3.5vw,58px) 48px; }
+    header { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+    h1 { margin:0; font-size:clamp(26px,3vw,42px); line-height:1.05; letter-spacing:-.035em; text-wrap:balance; }
+    .subtitle { margin:8px 0 0; color:var(--muted); }
+    .demo { padding:5px 9px; border:1px solid var(--blue); color:var(--blue); border-radius:999px; font-size:12px; font-weight:700; }
+    .filters { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+    .search {
+      min-height:44px; width:min(360px,100%); padding:0 14px; border:1px solid var(--rule); border-radius:8px;
+      color:var(--ink); background:var(--sheet);
+    }
+    .filter { min-height:44px; padding:0 14px; border:1px solid var(--rule); border-radius:8px; background:transparent; color:var(--ink); font-weight:650; }
+    .workspace { display:grid; grid-template-columns:minmax(330px,5fr) minmax(480px,7fr); min-height:680px; border-top:2px solid var(--ink); background:rgba(251,253,255,.72); box-shadow:0 18px 45px rgba(50,73,96,.08); }
+    .ledger { min-width:0; border-right:1px solid var(--rule); }
+    .ledger-head, .event-row { display:grid; grid-template-columns:82px minmax(0,1fr) 84px; gap:12px; align-items:center; }
+    .ledger-head { height:42px; padding:0 16px; color:var(--muted); font-size:12px; border-bottom:1px solid var(--rule); }
+    .event-row { min-height:86px; width:100%; padding:12px 16px; border:0; border-bottom:1px solid var(--rule); text-align:left; color:var(--ink); background:transparent; }
+    .event-row[aria-selected="true"] { background:var(--blue-soft); box-shadow:inset 4px 0 var(--blue); }
+    .time { font-variant-numeric:tabular-nums; font-size:17px; font-weight:780; }
+    .time small { display:block; font-size:11px; font-weight:600; color:var(--muted); margin-top:2px; }
+    .event-copy strong { display:block; font-size:14px; }
+    .event-copy small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:3px; }
+    .status { justify-self:end; display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:760; white-space:nowrap; }
+    .status::before { content:""; width:8px; height:8px; border-radius:50%; background:currentColor; }
+    .known { color:var(--green); }
+    .pending { color:var(--amber); }
+    .skipped { color:var(--muted); }
+    .detail { min-width:0; padding:22px 24px 26px; background:var(--sheet); }
+    .detail-top { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; padding-bottom:18px; border-bottom:1px solid var(--rule); }
+    .detail h2 { margin:0; font-size:21px; letter-spacing:-.02em; }
+    .detail-meta { display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:6px; color:var(--muted); font-size:13px; }
+    .stamp { transform:rotate(-3deg); border:2px solid var(--stamp); color:var(--stamp); border-radius:5px; padding:4px 8px; font-size:12px; font-weight:850; letter-spacing:.09em; }
+    .evidence-title { margin:22px 0 10px; font-size:13px; color:var(--muted); font-weight:700; }
+    .evidence { display:grid; grid-template-columns:1.35fr .72fr .95fr; border:1px solid var(--rule); border-radius:var(--radius); overflow:hidden; }
+    .evidence-item { min-width:0; padding:14px; border-right:1px solid var(--rule); background:#f8fbfe; }
+    .evidence-item:last-child { border-right:0; }
+    .frame { aspect-ratio:16/9; display:grid; place-items:center; overflow:hidden; background:linear-gradient(145deg,#9aabb9,#435365); color:white; position:relative; }
+    .frame::before { content:"合成画面"; position:absolute; left:10px; bottom:8px; font-size:11px; opacity:.85; }
+    .door { width:28%; height:76%; border:2px solid rgba(255,255,255,.75); border-radius:18px 18px 4px 4px; position:relative; }
+    .door::after { content:""; position:absolute; width:5px; height:5px; border-radius:50%; background:white; right:7px; top:52%; }
+    .face { aspect-ratio:1; display:grid; place-items:center; background:#d8e0e7; border-radius:8px; color:var(--muted); }
+    .face svg { width:56%; height:56%; }
+    .evidence-label { display:block; margin-top:10px; font-size:12px; color:var(--muted); }
+    .evidence-value { display:block; margin-top:2px; font-weight:760; }
+    .decision { display:grid; align-content:space-between; min-height:100%; background:#edf4fb; }
+    .decision strong { font-size:18px; }
+    .decision p { margin:6px 0 0; color:var(--muted); font-size:13px; }
+    .confidence { margin-top:16px; padding-top:12px; border-top:1px solid var(--rule); font-variant-numeric:tabular-nums; }
+    .timeline { margin-top:20px; display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--rule); }
+    .step { padding:14px 14px 0 0; position:relative; color:var(--muted); font-size:12px; }
+    .step::before { content:""; position:absolute; top:-5px; left:0; width:9px; height:9px; border-radius:50%; background:var(--blue); box-shadow:0 0 0 4px var(--sheet); }
+    .step strong { display:block; color:var(--ink); font-size:13px; margin-bottom:3px; }
+    .decision-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:24px; padding-top:18px; border-top:1px solid var(--rule); }
+    .primary { padding:0 18px; border:1px solid var(--blue); border-radius:8px; background:var(--blue); color:#fff; font-weight:760; box-shadow:0 6px 15px rgba(36,91,155,.16); }
+    .quiet { padding:0 16px; border:1px solid var(--rule); border-radius:8px; background:transparent; color:var(--ink); font-weight:700; }
+    .footnote { margin:14px 0 0; color:var(--muted); font-size:12px; }
+    @media (hover:hover) and (pointer:fine) {
+      nav a:hover, .event-row:hover { background-color:#edf4fa; }
+      .primary:hover { background:#1b4c84; }
+      .quiet:hover, .filter:hover { border-color:var(--blue); }
+    }
+    @media (max-width:980px) {
+      .app { grid-template-columns:76px minmax(0,1fr); }
+      .rail { padding-inline:10px; }
+      .brand span, nav a span, .rail-note { display:none; }
+      .brand { justify-content:center; margin-inline:0; }
+      nav a { justify-content:center; padding:0; }
+      .workspace { grid-template-columns:1fr; }
+      .ledger { border-right:0; }
+      .detail { border-top:2px solid var(--ink); }
+    }
+    @media (max-width:640px) {
+      body { padding-bottom:68px; }
+      .app { display:block; }
+      .rail { position:fixed; z-index:20; inset:auto 0 0; width:auto; height:68px; padding:8px 12px; flex-direction:row; border:0; border-top:1px solid #b8c7d6; }
+      .brand, .rail-note { display:none; }
+      nav { width:100%; grid-template-columns:repeat(4,1fr); gap:4px; }
+      nav a { min-height:52px; flex-direction:column; gap:2px; font-size:11px; }
+      nav a span { display:block; }
+      nav a[aria-current="page"] { box-shadow:inset 0 -3px var(--blue); }
+      main { padding:22px 14px 28px; }
+      header { align-items:flex-start; }
+      .filters { flex-wrap:wrap; }
+      .search { width:100%; }
+      .workspace { min-height:0; }
+      .ledger-head, .event-row { grid-template-columns:72px minmax(0,1fr); }
+      .ledger-head span:last-child, .event-row .status { display:none; }
+      .detail { padding:20px 16px; }
+      .evidence { grid-template-columns:1fr 1fr; }
+      .evidence-item { border-bottom:1px solid var(--rule); }
+      .decision { grid-column:1/-1; border-bottom:0; }
+      .timeline { grid-template-columns:1fr; gap:16px; }
+      .detail-top { align-items:center; }
+    }
+    @media (prefers-reduced-motion:reduce) {
+      *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; animation-duration:.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+  THESIS: 像一本可核对、可盖章、可撤销的门口观察簿；拒绝监控墙与 KPI 卡片拼盘。
+  OWN-WORLD: 冷白记录纸、蓝黑墨、朱红人工章；细线分栏、密集表格、真实缩略图与无嵌套卡片。
+  STORY: 先看今天发生了什么，再看系统为什么这样判断，最后完成一次可撤销的人物确认。
+  FIRST VIEWPORT: 左侧窄导航；中间 42% 为事件账页；右侧 58% 为证据带与人物决定。
+  FORM: 多屏运维系统的证据账簿方向；seed 2d897aaa。
+  FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+  -->
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span><strong>门锁观察簿</strong><small>持续学习中</small></span></div>
+      <nav aria-label="主导航">
+        <a href="#" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h10"/></svg><span>事件</span></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.8-3.5 2.6-5 5.5-5s4.7 1.5 5.5 5M16 7h5M18.5 4.5v5"/></svg><span>人物</span></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg><span>运行</span></a>
+        <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A7 7 0 0 0 15 6l-.3-2.6h-4L10.4 6A7 7 0 0 0 9 7.1l-2.4-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1A7 7 0 0 0 10.4 18l.3 2.6h4L15 18a7 7 0 0 0 1.5-1.1l2.4 1 2-3.4-2-1.5c.1-.3.1-.7.1-1z"/></svg><span>设置</span></a>
+      </nav>
+      <div class="rail-note"><strong>运行正常</strong>最近巡检：刚刚</div>
+    </aside>
+    <main>
+      <header><div><h1>门口发生了什么</h1><p class="subtitle">按下载器记录的时间排列，训练期不发送身份通知。</p></div><span class="demo">合成演示数据</span></header>
+      <div class="filters"><input class="search" aria-label="搜索事件" placeholder="搜索时间、人物或状态"><button class="filter">全部状态</button><button class="filter">最近 35 天</button></div>
+      <section class="workspace" aria-label="事件与证据">
+        <div class="ledger">
+          <div class="ledger-head"><span>时间</span><span>事件</span><span>结果</span></div>
+          <button class="event-row" aria-selected="true"><span class="time">08:15<small>今天</small></span><span class="event-copy"><strong>有人在门前停留</strong><small>1 人 · 清晰度良好 · 6 秒</small></span><span class="status pending">待确认</span></button>
+          <button class="event-row"><span class="time">19:42<small>昨天</small></span><span class="event-copy"><strong>人脸开锁录像</strong><small>已匹配：家人 A · 4 秒</small></span><span class="status known">已识别</span></button>
+          <button class="event-row"><span class="time">13:08<small>昨天</small></span><span class="event-copy"><strong>有人经过</strong><small>人脸过小，已跳过 · 3 秒</small></span><span class="status skipped">已跳过</span></button>
+          <button class="event-row"><span class="time">11:27<small>更早</small></span><span class="event-copy"><strong>有人在门前停留</strong><small>2 人同框 · 分别跟踪 · 8 秒</small></span><span class="status pending">待确认</span></button>
+        </div>
+        <article class="detail">
+          <div class="detail-top"><div><h2>今天 08:15 · 门前停留</h2><div class="detail-meta"><span>时长 6 秒</span><span>检测到 1 人</span><span>分析耗时 2.4 秒</span></div></div><span class="stamp">待人工确认</span></div>
+          <p class="evidence-title">系统为何这样判断</p>
+          <div class="evidence">
+            <div class="evidence-item"><div class="frame"><span class="door" aria-hidden="true"></span></div><span class="evidence-label">原录像</span><span class="evidence-value">门前停留 · 6 秒</span></div>
+            <div class="evidence-item"><div class="face"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="12" cy="9" r="4"/><path d="M5 21c1-4 3.3-6 7-6s6 2 7 6"/></svg></div><span class="evidence-label">最佳人脸</span><span class="evidence-value">清晰度 86%</span></div>
+            <div class="evidence-item decision"><div><span class="evidence-label">人物决定</span><strong>未知人物 U-004</strong><p>与既有人物差异明显；同框约束无冲突。</p></div><div class="confidence">与本簇相似度 <strong>0.71</strong></div></div>
+          </div>
+          <div class="timeline"><div class="step"><strong>08:15:03 · 录像就绪</strong>下载器完成校验后原子落盘</div><div class="step"><strong>08:15:10 · 分析完成</strong>1 条独立人脸轨迹进入未知簇</div><div class="step"><strong>等待您确认</strong>确认结果会留下审计记录并可撤销</div></div>
+          <div class="decision-actions"><button class="primary">确认并命名人物</button><button class="quiet">暂时保持未知</button><button class="quiet">标记为误检</button></div>
+          <p class="footnote">识别结果只用于整理和后续通知，永远不会触发开锁。</p>
+        </article>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

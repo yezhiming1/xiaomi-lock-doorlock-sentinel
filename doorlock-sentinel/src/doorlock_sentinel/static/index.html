@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>门锁观察簿</title>
+  <link rel="stylesheet" href="/app.css?v=0.0.1">
+  <script src="/app.js?v=0.0.1" defer></script>
+</head>
+<body>
+  <section id="login" class="login" hidden>
+    <div class="login-sheet">
+      <span class="lock-mark" aria-hidden="true"></span>
+      <h1>门锁观察簿</h1>
+      <p class="muted">只需输入管理密码。识别结果只用于整理录像，永远不会触发开锁。</p>
+      <form id="login-form" class="login-form">
+        <label for="password">管理密码</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
+        <button class="button primary" type="submit">进入观察簿</button>
+        <p id="login-error" class="form-error" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="shell" class="app" hidden>
+    <a class="skip-link" href="#content">跳到主要内容</a>
+    <aside class="rail">
+      <a class="brand" href="#events" aria-label="门锁观察簿首页">
+        <span class="lock-mark small" aria-hidden="true"></span>
+        <span><strong>门锁观察簿</strong><small>持续学习中</small></span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="#events" data-route="events"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 6h13M7 12h13M7 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span><span>事件</span></a>
+        <a href="#people" data-route="people"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.5-4.3 2.7-6.5 6.5-6.5s6 2.2 6.5 6.5"/></svg></span><span>人物</span></a>
+        <a href="#operations" data-route="operations"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-4 4 8 2-4h6"/></svg></span><span>运行</span></a>
+        <a href="#settings" data-route="settings"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg></span><span>设置</span></a>
+      </nav>
+      <div class="rail-status"><strong id="rail-health">正在核对</strong><span id="rail-note">连接 NAS 服务</span></div>
+    </aside>
+    <main>
+      <header class="page-header">
+        <div><h1 id="page-title">事件</h1><p id="page-subtitle" class="muted"></p></div>
+        <button id="refresh" class="button quiet" type="button">刷新</button>
+      </header>
+      <div id="notice" class="notice" hidden role="status"></div>
+      <div id="content" aria-live="polite"><div class="loading"><span></span>正在整理记录…</div></div>
+    </main>
+  </div>
+
+  <dialog id="modal" class="modal">
+    <form id="modal-form" method="dialog">
+      <div class="modal-head"><h2 id="modal-title"></h2><button class="icon-button" type="button" data-close-modal aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg></button></div>
+      <div id="modal-body" class="modal-body"></div>
+      <p id="modal-error" class="form-error" role="alert"></p>
+      <div class="modal-actions"><button class="button quiet" type="button" data-close-modal>取消</button><button id="modal-submit" class="button primary" type="submit">确认</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" hidden role="status"></div>
+</body>
+</html>

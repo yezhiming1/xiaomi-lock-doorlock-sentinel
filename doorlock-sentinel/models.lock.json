@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "model_id": "insightface-buffalo-m-det2.5g-r50-v1",
+  "package": {
+    "name": "buffalo_m.zip",
+    "release": "v0.7",
+    "url": "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_m.zip",
+    "size_bytes": 275951529,
+    "sha256": "d98264bd8f2dc75cbc2ddce2a14e636e02bb857b3051c234b737bf3b614edca9"
+  },
+  "license": {
+    "class": "non-commercial-research-only",
+    "notice_url": "https://github.com/deepinsight/insightface/tree/master/model_zoo",
+    "accepted_use": "private-home-non-commercial-evaluation"
+  },
+  "models": [
+    {
+      "name": "det_2.5g.onnx",
+      "role": "SCRFD 2.5G face detector",
+      "size_bytes": 3292009,
+      "sha256": "041f73f47371333d1d17a6fee6c8ab4e6aecabefe398ff32cca4e2d5eaee0af9"
+    },
+    {
+      "name": "w600k_r50.onnx",
+      "role": "ArcFace R50 face recognizer",
+      "size_bytes": 174383860,
+      "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
+    }
+  ]
+}

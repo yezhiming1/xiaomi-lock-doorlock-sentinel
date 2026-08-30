@@ -1,0 +1,4 @@
+LOCKED
+
+The package and both ONNX files are pinned by source URL, size and SHA-256 in models.lock.json.
+Model weights are intentionally excluded from Git, container images and public release archives.

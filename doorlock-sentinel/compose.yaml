@@ -1,0 +1,62 @@
+services:
+  doorlock-sentinel:
+    build:
+      context: .
+    image: doorlock-sentinel:0.0.1
+    container_name: doorlock-sentinel
+    restart: unless-stopped
+    stop_grace_period: 45s
+    cpus: 2.0
+    mem_limit: 2g
+    pids_limit: 128
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      DOORLOCK_ENVIRONMENT: production
+      DOORLOCK_DATABASE_URL: sqlite:////data/doorlock.sqlite3
+      DOORLOCK_DATA_DIR: /data
+      DOORLOCK_INBOX_DIR: /inbox
+      DOORLOCK_DERIVED_DIR: /data/derived
+      DOORLOCK_EXPORT_DIR: /data/exports
+      DOORLOCK_MODELS_DIR: /models
+      DOORLOCK_DETECTOR_MODEL: /models/det_2.5g.onnx
+      DOORLOCK_RECOGNIZER_MODEL: /models/w600k_r50.onnx
+      DOORLOCK_DETECTOR_SHA256: ${DOORLOCK_DETECTOR_SHA256}
+      DOORLOCK_RECOGNIZER_SHA256: ${DOORLOCK_RECOGNIZER_SHA256}
+      DOORLOCK_MODEL_ID: insightface-buffalo-m-det2.5g-r50-v1
+      DOORLOCK_ORT_INTRA_THREADS: ${DOORLOCK_ORT_INTRA_THREADS:-2}
+      DOORLOCK_ORT_INTER_THREADS: ${DOORLOCK_ORT_INTER_THREADS:-1}
+      DOORLOCK_PUBLIC_BASE_URL: ${DOORLOCK_PUBLIC_BASE_URL:?set DOORLOCK_PUBLIC_BASE_URL}
+      DOORLOCK_TRUSTED_HOSTS: ${DOORLOCK_TRUSTED_HOSTS:?set DOORLOCK_TRUSTED_HOSTS}
+      DOORLOCK_INTERNAL_API_SECRET_FILE: /run/doorlock/secrets/internal_api_secret
+      DOORLOCK_WEB_PASSWORD_HASH_FILE: /run/doorlock/secrets/web_password_hash
+      DOORLOCK_SECURITY_PEPPER_FILE: /run/doorlock/secrets/security_pepper
+      DOORLOCK_IDENTITY_NOTIFICATIONS_ENABLED: "false"
+      DOORLOCK_RISK_NOTIFICATIONS_ENABLED: "false"
+      DOORLOCK_FAILURE_NOTIFICATIONS_ENABLED: "true"
+      WECOM_ENABLED: ${WECOM_ENABLED:-false}
+      WECOM_TRANSPORT: sdk
+      WECOM_BOT_ID: ${WECOM_BOT_ID:-}
+      WECOM_TARGET_USERID: ${WECOM_TARGET_USERID:-}
+      WECOM_BOT_SECRET_FILE: /run/doorlock/secrets/wecom_bot_secret
+      RECOGNITION_INTERNAL_TOKEN_FILE: /run/doorlock/secrets/internal_api_secret
+      RECOGNITION_BASE_URL: http://127.0.0.1:8787
+    volumes:
+      - ${DOORLOCK_DATA_DIR:-./runtime}:/data
+      - ${DOORLOCK_INBOX_DIR:?set DOORLOCK_INBOX_DIR}:/inbox:ro
+      - ${DOORLOCK_MODELS_DIR:-./models}:/models:ro
+      - ${DOORLOCK_SECRETS_DIR:-./secrets}:/run/secrets:ro
+    ports:
+      - "127.0.0.1:${DOORLOCK_HTTP_PORT:-18125}:8787"
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /run:size=32m,mode=755
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - KILL
+      - SETGID
+      - SETUID

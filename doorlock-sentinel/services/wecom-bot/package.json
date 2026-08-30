@@ -1,0 +1,20 @@
+{
+  "name": "doorlock-sentinel-wecom-bot",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=18"},
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test test/*.test.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@wecom/aibot-node-sdk": "1.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2"
+  }
+}
