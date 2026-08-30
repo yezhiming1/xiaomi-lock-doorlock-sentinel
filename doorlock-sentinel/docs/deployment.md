@@ -41,7 +41,7 @@ DOORLOCK_DETECTOR_SHA256=<models.lock.json 中的值>
 DOORLOCK_RECOGNIZER_SHA256=<models.lock.json 中的值>
 ```
 
-V0.0.2 的 N100 工作值：
+V0.0.3 的 N100 工作值：
 
 ```dotenv
 DOORLOCK_ORT_INTRA_THREADS=2

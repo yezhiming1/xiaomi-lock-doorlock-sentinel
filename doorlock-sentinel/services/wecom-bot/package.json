@@ -1,6 +1,6 @@
 {
   "name": "doorlock-sentinel-wecom-bot",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "type": "module",
   "engines": {"node": ">=18"},

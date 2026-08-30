@@ -2,7 +2,7 @@ services:
   doorlock-sentinel:
     build:
       context: .
-    image: doorlock-sentinel:0.0.2
+    image: doorlock-sentinel:0.0.3
     container_name: doorlock-sentinel
     restart: unless-stopped
     stop_grace_period: 45s

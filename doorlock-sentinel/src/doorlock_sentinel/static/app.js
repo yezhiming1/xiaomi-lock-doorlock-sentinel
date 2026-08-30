@@ -242,7 +242,7 @@ function clusterCard(cluster) {
     const label = `未知人物样本 ${index + 1}`;
     return `<button type="button" class="face-choice" data-action="select-cluster-track" data-id="${esc(cluster.id)}" data-track-id="${esc(track.id)}" aria-pressed="${track.id === selected?.id}" aria-label="查看样本 ${index + 1} 的大图和录像">${face(track.face_url || track.preview_url, label, "cluster-thumb")}</button>`;
   }).join("");
-  const mergeAction = state.clusters.length > 1
+  const mergeAction = state.people.length > 0 || state.clusters.length > 1
     ? `<button class="button quiet small" data-action="merge-cluster" data-id="${esc(cluster.id)}">合并到…</button>`
     : "";
   const splitAction = cluster.tracks.length > 1
@@ -310,8 +310,8 @@ async function renderOperations() {
   <div class="section-head"><div><h2>人工操作与撤销</h2><p>命名、合并、拆分和误检决定均保留审计记录。</p></div></div>
   <table class="ledger-table"><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
     { render: (row) => esc(formatDate(row.created_at, true)) },
-    { render: (row) => esc(row.operation) },
-    { class: "long", render: (row) => esc(row.subject_id) },
+    { render: (row) => esc(row.operation_label || "人工操作") },
+    { class: "long", render: (row) => esc(row.subject_label || "人工操作记录") },
     { render: (row) => row.undone_at ? "已撤销" : row.operation === "undo" ? "撤销记录" : `<button class="button small quiet" data-action="undo" data-id="${esc(row.id)}">撤销</button>` },
   ])}</tbody></table>`;
 }
@@ -403,9 +403,16 @@ function mergePerson(sourceId) {
 }
 
 function mergeCluster(sourceId) {
-  const targets = state.clusters.filter((item) => item.id !== sourceId);
-  openModal("合并未知人物簇", `<p>只在您确认两组样本是同一个人时合并；同框冲突会被系统拒绝。</p><div class="field"><label for="modal-target">目标人物簇</label><select id="modal-target">${targets.map((item) => `<option value="${esc(item.id)}">未知人物 ${esc(item.id.slice(-6))} · ${item.event_count} 次</option>`).join("")}</select></div>`, "确认合并", async () => {
-    await mutate("/api/clusters/merge", "POST", { source_cluster_id: sourceId, target_cluster_id: $("#modal-target").value, idempotency_key: idempotency() }, "人物簇已合并，可在运行记录中撤销");
+  const peopleOptions = state.people.map((item) => `<option value="person:${esc(item.id)}">${esc(item.display_name)} · ${esc(relationshipLabels[item.relationship] || item.relationship)}</option>`).join("");
+  const clusterOptions = state.clusters.filter((item) => item.id !== sourceId).map((item) => `<option value="cluster:${esc(item.id)}">待确认人物 ${esc(item.id.slice(-6).toUpperCase())} · ${item.event_count} 次</option>`).join("");
+  const groups = `${peopleOptions ? `<optgroup label="已确认人物（优先）">${peopleOptions}</optgroup>` : ""}${clusterOptions ? `<optgroup label="待确认人物">${clusterOptions}</optgroup>` : ""}`;
+  openModal("合并人物", `<p>已核对的人物优先显示；仅在您确认是同一个人时合并，同框冲突会被系统拒绝。</p><div class="field"><label for="modal-target">合并到</label><select id="modal-target" aria-describedby="modal-target-hint">${groups}</select><p class="field-hint" id="modal-target-hint">并入已确认人物后，后续清晰样本会继续归入该人物。</p></div>`, "确认合并", async () => {
+    const [targetType, targetId] = $("#modal-target").value.split(":", 2);
+    if (targetType === "person") {
+      await mutate(`/api/clusters/${sourceId}/assign-person`, "POST", { target_person_id: targetId, idempotency_key: idempotency() }, "待确认人物已并入已确认人物，可在运行记录中撤销");
+      return;
+    }
+    await mutate("/api/clusters/merge", "POST", { source_cluster_id: sourceId, target_cluster_id: targetId, idempotency_key: idempotency() }, "待确认人物已合并，可在运行记录中撤销");
   });
 }
 

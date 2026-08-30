@@ -30,6 +30,7 @@ from .models import (
     VideoIngest,
 )
 from .people import (
+    assign_cluster_to_person,
     label_cluster,
     mark_cluster_false_positive,
     merge_clusters,
@@ -66,6 +67,10 @@ class MergeClustersRequest(IdempotentRequest):
     target_cluster_id: str = Field(min_length=1, max_length=64)
 
 
+class AssignClusterRequest(IdempotentRequest):
+    target_person_id: str = Field(min_length=1, max_length=64)
+
+
 class SplitClusterRequest(IdempotentRequest):
     track_ids: list[str] = Field(min_length=1, max_length=100)
 
@@ -83,12 +88,76 @@ def _artifact_url(artifact_id: str | None) -> str | None:
     return f"/api/artifacts/{artifact_id}" if artifact_id else None
 
 
+OPERATION_LABELS = {
+    "label_cluster": "确认人物",
+    "rename_person": "修改人物",
+    "assign_cluster_to_person": "并入已确认人物",
+    "merge_people": "合并已确认人物",
+    "merge_clusters": "合并待确认人物",
+    "split_cluster": "拆分待确认人物",
+    "cluster_false_positive": "标记误检",
+    "undo": "撤销操作",
+}
+
+
+def _short_identifier(value: str | None) -> str:
+    return (value or "")[-6:].upper() or "未知"
+
+
+def _cluster_label(cluster_id: str | None) -> str:
+    return f"待确认人物（编号 {_short_identifier(cluster_id)}）"
+
+
+def _person_label(session: Any, person_id: str | None, fallback: Any = None) -> str:
+    person = session.get(Person, person_id) if person_id else None
+    name = person.display_name if person else fallback
+    return f"已确认人物：{name}" if name else "已确认人物"
+
+
+def _operation_subject_label(session: Any, row: ManualOperation) -> str:
+    after = row.after_json or {}
+    if row.operation == "label_cluster":
+        return _person_label(session, after.get("person_id"), after.get("display_name"))
+    if row.operation == "rename_person":
+        return _person_label(session, after.get("person_id"), after.get("display_name"))
+    if row.operation == "assign_cluster_to_person":
+        person = _person_label(
+            session,
+            after.get("target_person_id"),
+            after.get("display_name"),
+        )
+        return f"{_cluster_label(after.get('cluster_id'))} → {person}"
+    if row.operation == "merge_people":
+        source = _person_label(session, after.get("source_person_id"))
+        target = _person_label(session, after.get("target_person_id"))
+        return f"{source} → {target}"
+    if row.operation == "merge_clusters":
+        source = _cluster_label(after.get("source_cluster_id"))
+        target = _cluster_label(after.get("target_cluster_id"))
+        return f"{source} → {target}"
+    if row.operation == "split_cluster":
+        source = _cluster_label(after.get("source_cluster_id"))
+        created = _cluster_label(after.get("new_cluster_id"))
+        return f"{source} → {created}"
+    if row.operation == "cluster_false_positive":
+        return _cluster_label(after.get("cluster_id") or row.subject_id)
+    if row.operation == "undo":
+        original = session.get(
+            ManualOperation,
+            row.undo_operation_id or row.subject_id,
+        )
+        if original and original.id != row.id and original.operation != "undo":
+            return f"撤销：{_operation_subject_label(session, original)}"
+        return "历史人工操作"
+    if row.subject_type == "person":
+        return _person_label(session, row.subject_id)
+    if row.subject_type == "cluster":
+        return _cluster_label(row.subject_id)
+    return "人工操作记录"
+
+
 def _track_item(context: AuthContext, track: FaceTrack) -> dict[str, Any]:
-    person = (
-        context.database_session.get(Person, track.person_id)
-        if track.person_id
-        else None
-    )
+    person = context.database_session.get(Person, track.person_id) if track.person_id else None
     cluster = (
         context.database_session.get(UnknownCluster, track.unknown_cluster_id)
         if track.unknown_cluster_id
@@ -182,14 +251,11 @@ def bootstrap(
     context: Annotated[AuthContext, Depends(authenticated)],
 ) -> dict[str, Any]:
     session = context.database_session
-    recent = list(
-        session.scalars(select(Event).order_by(Event.occurred_at.desc()).limit(8))
-    )
+    recent = list(session.scalars(select(Event).order_by(Event.occurred_at.desc()).limit(8)))
+
     def scalar_count(model, *where) -> int:
-        return int(
-            session.scalar(select(func.count()).select_from(model).where(*where))
-            or 0
-        )
+        return int(session.scalar(select(func.count()).select_from(model).where(*where)) or 0)
+
     latest_receipt = session.scalar(
         select(BackupReceipt)
         .where(BackupReceipt.state == "verified")
@@ -197,7 +263,7 @@ def bootstrap(
         .limit(1)
     )
     return {
-        "version": "0.0.2",
+        "version": "0.0.3",
         "counts": {
             "events": scalar_count(Event),
             "people": scalar_count(Person, Person.status != "merged"),
@@ -269,9 +335,7 @@ def artifact(
     try:
         path = safe_artifact_path(context.runtime.settings, Path(row.local_path))
     except ValueError:
-        raise HTTPException(
-            status_code=410, detail="本地文件已不再保留"
-        ) from None
+        raise HTTPException(status_code=410, detail="本地文件已不再保留") from None
     media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     return FileResponse(
         path,
@@ -381,8 +445,13 @@ def operations(
             {
                 "id": row.id,
                 "operation": row.operation,
+                "operation_label": OPERATION_LABELS.get(row.operation, "人工操作"),
                 "subject_type": row.subject_type,
                 "subject_id": row.subject_id,
+                "subject_label": _operation_subject_label(
+                    context.database_session,
+                    row,
+                ),
                 "after": row.after_json,
                 "created_at": _iso(row.created_at),
                 "undone_at": _iso(row.undone_at),
@@ -399,13 +468,9 @@ def system(
     session = context.database_session
     disk = shutil.disk_usage(context.runtime.settings.data_dir)
     model = session.get(ModelRegistry, context.runtime.settings.model_id)
-    audits = list(
-        session.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(40))
-    )
+    audits = list(session.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(40)))
     downloads = list(
-        session.scalars(
-            select(DownloadReport).order_by(DownloadReport.updated_at.desc()).limit(30)
-        )
+        session.scalars(select(DownloadReport).order_by(DownloadReport.updated_at.desc()).limit(30))
     )
     failed_ingests = list(
         session.scalars(
@@ -429,7 +494,7 @@ def system(
     )
     return {
         "service": {
-            "version": "0.0.2",
+            "version": "0.0.3",
             "analysis_ready": context.runtime.pipeline.ready,
             "analysis_error": context.runtime.pipeline.readiness_error,
             "database": "ready",
@@ -524,6 +589,27 @@ def cluster_label(
             cluster_id=cluster_id,
             display_name=body.display_name,
             relationship=body.relationship,
+            idempotency_key=body.idempotency_key,
+        ),
+    )
+
+
+@router.post("/clusters/{cluster_id}/assign-person")
+def cluster_assign_person(
+    cluster_id: str,
+    body: AssignClusterRequest,
+    context: Annotated[AuthContext, Depends(writable)],
+) -> dict[str, Any]:
+    return _mutate(
+        context,
+        "cluster.assign_person",
+        "cluster",
+        cluster_id,
+        lambda: assign_cluster_to_person(
+            context.database_session,
+            context.runtime.settings,
+            cluster_id=cluster_id,
+            target_person_id=body.target_person_id,
             idempotency_key=body.idempotency_key,
         ),
     )

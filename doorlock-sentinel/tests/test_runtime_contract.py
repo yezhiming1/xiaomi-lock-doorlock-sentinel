@@ -23,7 +23,7 @@ def test_release_version_surfaces_are_consistent():
         )
     )
 
-    assert version == "0.0.2"
+    assert version == "0.0.3"
     assert __version__ == version
     assert package["version"] == version
     assert package_lock["version"] == version

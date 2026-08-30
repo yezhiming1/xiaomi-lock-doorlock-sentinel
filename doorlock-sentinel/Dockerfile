@@ -9,7 +9,7 @@ RUN npm run build && npm prune --omit=dev
 FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS runtime
 LABEL org.opencontainers.image.title="Doorlock Sentinel" \
       org.opencontainers.image.description="NAS-native door-lock video recognition and review console" \
-      org.opencontainers.image.version="0.0.2" \
+      org.opencontainers.image.version="0.0.3" \
       org.opencontainers.image.licenses="MIT"
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
