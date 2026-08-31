@@ -70,7 +70,7 @@ docker compose ps
 ```bash
 DOORLOCK_EXPECTED_PREDECESSOR_IMAGE_ID=sha256:<verified-id> \
 DOORLOCK_EXPECTED_SOURCE_COMMIT=<final-commit> \
-./scripts/build_upgrade_image.sh
+sh ./scripts/build_upgrade_image.sh
 ```
 
 `Dockerfile.upgrade` 只用于 V0.0.3 → V0.0.4 的代码层升级；它不替代规范 Dockerfile，
