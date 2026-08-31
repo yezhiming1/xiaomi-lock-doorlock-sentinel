@@ -63,6 +63,20 @@ docker compose up -d
 docker compose ps
 ```
 
+若且仅若固定外部基础镜像注册表暂时不可达、当前已验证前代镜像仍在本机、且本版本没有
+依赖或基础镜像变化，可使用版本专用的离线升级构建。调用方必须同时传入实际前代镜像 ID
+和最终源码提交，脚本在构建前后复核二者，并在断网只读容器中比对包元数据与运行版本：
+
+```bash
+DOORLOCK_EXPECTED_PREDECESSOR_IMAGE_ID=sha256:<verified-id> \
+DOORLOCK_EXPECTED_SOURCE_COMMIT=<final-commit> \
+./scripts/build_upgrade_image.sh
+```
+
+`Dockerfile.upgrade` 只用于 V0.0.3 → V0.0.4 的代码层升级；它不替代规范 Dockerfile，
+不得用于依赖、基础镜像、系统包或 Node 运行代码发生变化的版本。正式记录必须注明使用了
+哪条构建路径，并保留前代镜像直到新版本消费者验收完成。
+
 启动入口先校验持久数据目录所有者；首次启动按“子目录在前、父目录在后”的顺序交给 UID 10001，后续启动由 UID 10001 自己补齐子目录，避免依赖 `DAC_OVERRIDE`。随后复制只读 secret 到容器临时文件系统、执行 `alembic upgrade head`，最后启动 Python 和 Node。容器根文件系统只读，删除所有 capabilities 后只加回降权、初始化与优雅停止所需的 `CHOWN`、`SETGID`、`SETUID`、`KILL`；`KILL` 仅供容器内 Supervisor 结束 UID 10001 子进程，容器不共享宿主 PID 命名空间。Python/Node 仍以 UID 10001 运行；容器内 `root` 补充组只用于读取 `0640` 的只读输入挂载。
 
 ## 本机健康验收
