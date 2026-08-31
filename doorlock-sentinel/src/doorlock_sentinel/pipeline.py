@@ -23,6 +23,7 @@ from .face_backend import (
     ModelUnavailableError,
     create_face_backend,
 )
+from .media_names import derived_image_name, is_current_video_filename
 from .metadata import read_sidecar
 from .models import (
     AnalysisSkip,
@@ -176,6 +177,7 @@ class ProcessingPipeline:
 
     def _write_track_media(
         self,
+        video_name: str,
         event_id: str,
         occurred_at,
         track: FaceTrackResult,
@@ -187,8 +189,14 @@ class ProcessingPipeline:
         scene = best.frame.copy()
         x, y, width, height = best.face.bbox
         cv2.rectangle(scene, (x, y), (x + width, y + height), (155, 91, 36), 2)
-        frame_path = target_dir / f"{event_id}_track{track.index:02d}_scene.jpg"
-        face_path = target_dir / f"{event_id}_track{track.index:02d}_face.jpg"
+        if is_current_video_filename(video_name):
+            frame_name = derived_image_name(video_name, track.index, "scene")
+            face_name = derived_image_name(video_name, track.index, "face")
+        else:
+            frame_name = f"{event_id}_track{track.index:02d}_scene.jpg"
+            face_name = f"{event_id}_track{track.index:02d}_face.jpg"
+        frame_path = target_dir / frame_name
+        face_path = target_dir / face_name
         write_jpeg(frame_path, scene, quality=86)
         write_jpeg(face_path, best.face.aligned_face, quality=92)
         return frame_path, face_path
@@ -225,7 +233,12 @@ class ProcessingPipeline:
         try:
             event_id = f"evt_{sha256[:32]}"
             for track in analysis.tracks:
-                media = self._write_track_media(event_id, metadata.occurred_at, track)
+                media = self._write_track_media(
+                    source.name,
+                    event_id,
+                    metadata.occurred_at,
+                    track,
+                )
                 track_media[track.index] = media
                 written.extend(media)
             with self.database.session() as session:

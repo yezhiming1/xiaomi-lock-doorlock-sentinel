@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-_DOWNLOADER_NAME = re.compile(
-    r"^xiaomi_lock_(?P<stamp>\d{8}T\d{9}Z)_[0-9a-f]+\.(?:mp4|mov|mkv|avi|m4v)$",
-    re.IGNORECASE,
-)
+from .media_names import occurred_at_from_filename
 
 
 @dataclass(slots=True)
@@ -85,16 +81,7 @@ def _parse_time(value: Any) -> datetime | None:
 
 
 def _time_from_filename(path: Path) -> datetime | None:
-    match = _DOWNLOADER_NAME.match(path.name)
-    if not match:
-        return None
-    stamp = match.group("stamp")
-    try:
-        return datetime.strptime(stamp, "%Y%m%dT%H%M%S%fZ").replace(
-            tzinfo=timezone.utc
-        )
-    except ValueError:
-        return None
+    return occurred_at_from_filename(path)
 
 
 def _read_sidecar_payload(video_path: Path) -> dict[str, Any]:

@@ -49,6 +49,27 @@ Doorlock Sentinel 周期性导出 `runtime/exports/artifact-manifest.json`。这
 
 内部快照接口使用 SQLite 在线 backup API，然后在目标快照执行 `PRAGMA integrity_check`。成功快照登记为永久制品并进入备份清单。复制正在写入的单个 SQLite 主文件不能替代此步骤。
 
+## V0.0.4 历史媒体改名
+
+执行顺序固定：停止 Doorlock Sentinel，创建并校验 SQLite 在线快照，确认下载器已完成
+历史 MP4 改名，然后在使用同一私有数据与只读输入挂载的 V0.0.4 镜像中运行：
+
+```bash
+doorlockctl migrate-media-names
+doorlockctl migrate-media-names --apply
+doorlockctl migrate-media-names
+```
+
+第一次必须返回 dry-run 可迁移计数；应用后复读必须为 0。迁移会核对源录像和派生图片
+大小、SHA-256、路径边界及备份回执，目标存在即失败，不会覆盖。图片以同目录硬链接切换，
+随后在一个数据库事务中更新录像摄取、源制品和派生制品路径；数据库事务失败时恢复图片
+旧名。进程异常留下独占锁时，不得直接重复运行，应先保存日志、核对无活跃迁移进程和
+文件/数据库状态，再决定是否移除精确锁文件。
+
+验收至少比较迁移前后：录像/人脸/场景数量、总字节、内容 SHA-256 集合、数据库
+`PRAGMA integrity_check`、孤立外键、旧名/新名计数和生产健康。115 不属于该命令；存在
+任一备份回执的待迁移制品会失败关闭。
+
 ## 模型问题
 
 启动时核对两个模型 SHA-256、输入输出约定和 512 维特征。任何不一致使 readiness 降级，不会带着错误权重继续学习。升级模型时保留旧版本与数据，重新嵌入后旁路比较。
