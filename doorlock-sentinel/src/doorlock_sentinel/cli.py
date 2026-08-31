@@ -7,6 +7,7 @@ from sqlalchemy import select
 
 from .config import get_settings
 from .db import Database
+from .media_migration import migrate_media_names
 from .models import UnknownCluster, VideoIngest
 from .pipeline import ProcessingPipeline
 
@@ -19,12 +20,14 @@ def main() -> None:
     process.add_argument("ingest_id")
     sub.add_parser("clusters")
     sub.add_parser("ingest")
+    migration = sub.add_parser("migrate-media-names")
+    migration.add_argument("--apply", action="store_true")
     args = parser.parse_args()
 
     settings = get_settings()
     database = Database(settings)
-    pipeline = ProcessingPipeline(settings, database)
     if args.command == "check-models":
+        pipeline = ProcessingPipeline(settings, database)
         print(
             json.dumps(
                 {"ready": pipeline.ready, "error": pipeline.readiness_error},
@@ -32,7 +35,16 @@ def main() -> None:
             )
         )
     elif args.command == "process":
+        pipeline = ProcessingPipeline(settings, database)
         print(pipeline.process(args.ingest_id))
+    elif args.command == "migrate-media-names":
+        print(
+            json.dumps(
+                migrate_media_names(database, settings, apply=args.apply),
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
     elif args.command == "clusters":
         with database.session() as session:
             rows = list(

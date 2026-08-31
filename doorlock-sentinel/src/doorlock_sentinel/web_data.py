@@ -263,7 +263,7 @@ def bootstrap(
         .limit(1)
     )
     return {
-        "version": "0.0.3",
+        "version": "0.0.4",
         "counts": {
             "events": scalar_count(Event),
             "people": scalar_count(Person, Person.status != "merged"),
@@ -494,7 +494,7 @@ def system(
     )
     return {
         "service": {
-            "version": "0.0.3",
+            "version": "0.0.4",
             "analysis_ready": context.runtime.pipeline.ready,
             "analysis_error": context.runtime.pipeline.readiness_error,
             "database": "ready",
