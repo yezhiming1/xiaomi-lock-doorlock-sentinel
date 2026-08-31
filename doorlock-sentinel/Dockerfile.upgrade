@@ -1,0 +1,25 @@
+ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.3
+FROM ${PREDECESSOR_IMAGE}
+
+ARG DOORLOCK_SOURCE_REVISION
+LABEL org.opencontainers.image.version="0.0.4" \
+      org.opencontainers.image.revision="${DOORLOCK_SOURCE_REVISION}" \
+      org.opencontainers.image.base.name="doorlock-sentinel:0.0.3"
+
+USER root
+WORKDIR /app
+
+COPY pyproject.toml requirements.lock README.md alembic.ini models.lock.json ./
+RUN rm -rf /app/src/doorlock_sentinel /app/migrations /app/docker /app/scripts /app/docs
+COPY src/doorlock_sentinel ./src/doorlock_sentinel
+COPY migrations ./migrations
+COPY docker ./docker
+COPY scripts ./scripts
+COPY docs ./docs
+COPY services/wecom-bot/package.json ./services/wecom-bot/package.json
+
+RUN /opt/venv/bin/pip install --no-cache-dir --no-index \
+      --no-build-isolation --no-deps . \
+    && /opt/venv/bin/pip check \
+    && rm -rf /app/src/*.egg-info \
+    && chmod +x /app/docker/entrypoint.sh /app/scripts/*.sh
