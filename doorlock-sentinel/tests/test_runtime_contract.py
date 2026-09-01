@@ -23,7 +23,7 @@ def test_release_version_surfaces_are_consistent():
         )
     )
 
-    assert version == "0.0.4"
+    assert version == "0.0.5"
     assert __version__ == version
     assert package["version"] == version
     assert package_lock["version"] == version
@@ -38,7 +38,21 @@ def test_release_version_surfaces_are_consistent():
         encoding="utf-8"
     )
     assert f"/app.css?v={version}" in index
+    assert f"/time-format.js?v={version}" in index
     assert f"/app.js?v={version}" in index
+    assert f"<title>门锁观察簿 V{version}</title>" in index
+    assert f"门锁观察簿 <span class=\"app-version\">V{version}</span>" in index
+
+
+def test_browser_time_contract_is_explicitly_beijing_time():
+    static = ROOT / "src" / "doorlock_sentinel" / "static"
+    helper = (static / "time-format.js").read_text(encoding="utf-8")
+    app = (static / "app.js").read_text(encoding="utf-8")
+
+    assert 'BEIJING_TIME_ZONE = "Asia/Shanghai"' in helper
+    assert "timeZone: BEIJING_TIME_ZONE" in helper
+    assert "const { dayLabel, formatDate } = globalThis.DoorlockTime" in app
+    assert "按北京时间排列" in app
 
 
 def test_container_exposes_only_the_host_loopback_boundary():

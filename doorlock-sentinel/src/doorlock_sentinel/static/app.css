@@ -52,6 +52,7 @@ button:disabled { cursor: not-allowed; }
 .brand { display: flex; align-items: center; gap: 12px; margin: 0 8px 36px; color: var(--ink); text-decoration: none; }
 .brand strong, .brand small { display: block; }
 .brand strong { font-size: 17px; letter-spacing: .03em; }
+.app-version { white-space: nowrap; font-size: .72em; font-weight: 750; letter-spacing: .02em; }
 .brand small { color: var(--muted); font-size: 12px; }
 .lock-mark { width: 46px; height: 54px; border: 2px solid var(--ink); border-radius: 20px 20px 9px 9px; display: inline-block; position: relative; background: var(--sheet); }
 .lock-mark::after { content: ""; position: absolute; width: 6px; height: 6px; border-radius: 50%; right: 9px; top: 24px; background: var(--stamp); }

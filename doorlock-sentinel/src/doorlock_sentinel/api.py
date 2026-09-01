@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from . import __version__
 from .artifacts import ManifestWorker
 from .config import Settings, get_settings
 from .db import Database
@@ -72,7 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="门锁证据台",
-        version="0.0.4",
+        version=__version__,
         docs_url=None if settings.environment == "production" else "/docs",
         redoc_url=None,
         openapi_url=None if settings.environment == "production" else "/openapi.json",
@@ -117,7 +118,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "status": "ok",
             "service": "doorlock-sentinel",
-            "version": "0.0.4",
+            "version": __version__,
             "time": datetime.now(timezone.utc).isoformat(),
         }
 

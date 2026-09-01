@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from . import __version__
 from .artifacts import safe_artifact_path
 from .models import (
     ArtifactManifest,
@@ -28,6 +29,7 @@ from .models import (
     UnknownCluster,
     UnknownClusterMember,
     VideoIngest,
+    ensure_utc,
 )
 from .people import (
     assign_cluster_to_person,
@@ -81,7 +83,9 @@ class NotificationSettingsRequest(BaseModel):
 
 
 def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value else None
+    if value is None:
+        return None
+    return ensure_utc(value).isoformat().replace("+00:00", "Z")
 
 
 def _artifact_url(artifact_id: str | None) -> str | None:
@@ -263,7 +267,7 @@ def bootstrap(
         .limit(1)
     )
     return {
-        "version": "0.0.4",
+        "version": __version__,
         "counts": {
             "events": scalar_count(Event),
             "people": scalar_count(Person, Person.status != "merged"),
@@ -494,7 +498,7 @@ def system(
     )
     return {
         "service": {
-            "version": "0.0.4",
+            "version": __version__,
             "analysis_ready": context.runtime.pipeline.ready,
             "analysis_error": context.runtime.pipeline.readiness_error,
             "database": "ready",

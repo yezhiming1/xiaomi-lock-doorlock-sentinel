@@ -13,6 +13,7 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const content = $("#content");
 const modal = $("#modal");
+const { dayLabel, formatDate } = globalThis.DoorlockTime;
 const relationshipLabels = {
   family: "家人",
   neighbor: "邻居",
@@ -23,7 +24,7 @@ const relationshipLabels = {
   other: "其他",
 };
 const routeCopy = {
-  events: ["门口发生了什么", "按下载器记录的时间排列，训练期不发送身份通知。"],
+  events: ["门口发生了什么", "按北京时间排列，训练期不发送身份通知。"],
   people: ["人物与未知簇", "只把清晰、可核对的样本纳入学习；人工决定均可撤销。"],
   operations: ["失败与备份状态", "下载、分析、通知和备份回执都不会静默失败。"],
   settings: ["通知与安全", "身份和风险通知默认关闭；运行故障通知始终开启。"],
@@ -40,27 +41,6 @@ function esc(value) {
 
 function idempotency() {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-}
-
-function formatDate(value, full = false) {
-  if (!value) return "—";
-  const date = new Date(value);
-  const options = full
-    ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }
-    : { hour: "2-digit", minute: "2-digit", hour12: false };
-  return new Intl.DateTimeFormat("zh-CN", options).format(date);
-}
-
-function dayLabel(value) {
-  if (!value) return "时间未知";
-  const date = new Date(value);
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const days = Math.round((start - target) / 86400000);
-  if (days === 0) return "今天";
-  if (days === 1) return "昨天";
-  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date);
 }
 
 function bytes(value) {
@@ -294,21 +274,21 @@ async function renderOperations() {
     <div class="system-cell"><span>通知死信</span><strong>${outbox.dead || 0}</strong></div>
   </div>
   <div class="section-head"><div><h2>需要处理的失败</h2><p>分析已经自动按 5、20、60 分钟重试；仍失败时在这里手工重试。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>时间</th><th>文件</th><th>原因</th><th>操作</th></tr></thead><tbody>${tableRows(system.failed_ingests || [], [
+  <table class="ledger-table"><thead><tr><th>北京时间</th><th>文件</th><th>原因</th><th>操作</th></tr></thead><tbody>${tableRows(system.failed_ingests || [], [
     { render: (row) => esc(formatDate(row.updated_at, true)) },
     { class: "long", render: (row) => esc(row.file_name) },
     { class: "long", render: (row) => esc(row.error_code || row.error || "未知原因") },
     { render: (row) => `<button class="button small quiet" data-action="retry-ingest" data-id="${esc(row.id)}">重新分析</button>` },
   ])}</tbody></table>
   <div class="section-head"><div><h2>下载器回报</h2><p>本系统只接收下载状态，不读取小米或 Home Assistant 凭据。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>下载器记录时间</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>${tableRows(system.download_reports || [], [
+  <table class="ledger-table"><thead><tr><th>下载器记录时间（北京时间）</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>${tableRows(system.download_reports || [], [
     { render: (row) => esc(formatDate(row.event_time, true)) },
     { render: (row) => esc(row.state) },
     { render: (row) => esc(row.attempts) },
     { class: "long", render: (row) => esc(row.error_code || "—") },
   ])}</tbody></table>
   <div class="section-head"><div><h2>人工操作与撤销</h2><p>命名、合并、拆分和误检决定均保留审计记录。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
+  <table class="ledger-table"><thead><tr><th>北京时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
     { render: (row) => esc(formatDate(row.created_at, true)) },
     { render: (row) => esc(row.operation_label || "人工操作") },
     { class: "long", render: (row) => esc(row.subject_label || "人工操作记录") },
