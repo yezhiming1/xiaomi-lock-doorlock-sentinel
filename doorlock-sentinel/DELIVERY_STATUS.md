@@ -1,12 +1,16 @@
 # 交付状态
 
-版本：`V0.0.4` 已发布并部署
+候选版本：`V0.0.5` 已完成本地回归；生产版本：`V0.0.4`
 
-当前状态：`RELEASED / TARGET_DEPLOYED / VERIFIED`
+当前状态：`V0.0.5 LOCAL_VALIDATED / TARGET_UNKNOWN`；`V0.0.4 RELEASED / TARGET_DEPLOYED / VERIFIED`
 
 已具备的聚焦证据：
 
 - Python 静态检查通过。
+- V0.0.5 将接口时间统一为明确 UTC，并把管理页面显示固定为北京时间；北京时间自然日边界、
+  页面版本号和静态资源版本均有回归测试。
+- V0.0.5 Python 46 项、Node 4 项、TypeScript 构建、生产依赖审计、迁移往返、合成烟雾链、
+  模型锁和公开目录审计通过；目标 NAS、Edge 和公网尚未执行，保持 `UNKNOWN`。
 - Python 单元与安全测试通过（43 项）；V0.0.4 新增北京时间解析、a/b 命名及数据库/
   文件迁移幂等测试。
 - 企业微信适配层测试、TypeScript 构建和生产依赖漏洞审计通过。
