@@ -155,6 +155,31 @@ def test_blank_names_are_numbered_by_relationship(database, settings):
         assert unchanged["display_name"] == "快递员 2"
 
 
+@pytest.mark.parametrize(
+    ("relationship", "expected_name"),
+    (("self", "我 1"), ("friend", "朋友 1")),
+)
+def test_self_and_friend_relationships_use_existing_numbering(
+    database,
+    settings,
+    relationship,
+    expected_name,
+):
+    with database.session() as session:
+        cluster = _cluster_with_tracks(session, settings)
+        result = label_cluster(
+            session,
+            settings,
+            cluster_id=cluster.id,
+            display_name="",
+            relationship=relationship,
+            idempotency_key=f"label-cluster-{relationship}-0001",
+        )
+
+        assert result["display_name"] == expected_name
+        assert result["relationship"] == relationship
+
+
 def test_blank_name_continues_historical_relationship_number(database, settings):
     with database.session() as session:
         session.add(

@@ -83,9 +83,9 @@ class RiskScorer:
             score -= 20
             reasons.append("行为符合正常配送")
         relationships = {item.relationship for item in known if item.relationship}
-        if not unknown and relationships and relationships <= {"family"}:
+        if not unknown and relationships and relationships <= {"self", "family"}:
             score -= 40
-            reasons.append("仅识别到家人")
+            reasons.append("仅识别到本人或家人")
         if (
             not unknown
             and relationships

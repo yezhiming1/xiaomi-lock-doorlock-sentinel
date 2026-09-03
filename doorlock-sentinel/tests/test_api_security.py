@@ -85,7 +85,10 @@ def test_security_headers_cover_static_console(settings):
         assert response.headers["x-frame-options"] == "DENY"
         assert response.headers["cache-control"] == "no-store"
         assert "default-src 'self'" in response.headers["content-security-policy"]
-        assert client.get("/app.js").headers["cache-control"] == "no-store"
+        app_js = client.get("/app.js")
+        assert app_js.headers["cache-control"] == "no-store"
+        assert 'self: "我"' in app_js.text
+        assert 'friend: "朋友"' in app_js.text
 
 
 def test_label_request_allows_omitted_or_blank_name():

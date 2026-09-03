@@ -1,4 +1,4 @@
-# Runtime dependency lock for the V0.0.5 Linux container.
+# Runtime dependency lock for the V0.0.6 Linux container.
 alembic==1.19.1
 annotated-doc==0.0.5
 annotated-types==0.8.0

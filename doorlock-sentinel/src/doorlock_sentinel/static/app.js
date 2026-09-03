@@ -15,7 +15,9 @@ const content = $("#content");
 const modal = $("#modal");
 const { dayLabel, formatDate } = globalThis.DoorlockTime;
 const relationshipLabels = {
+  self: "我",
   family: "家人",
+  friend: "朋友",
   neighbor: "邻居",
   courier: "快递员",
   cleaner: "保洁",
