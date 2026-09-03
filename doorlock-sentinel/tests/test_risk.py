@@ -37,3 +37,40 @@ def test_family_normal_event_is_record_only(settings):
     )
     assert result.level == "record"
     assert result.score == 0
+
+
+def test_self_uses_family_trust_discount(settings):
+    scorer = RiskScorer(settings)
+    metadata = EventMetadata(
+        occurred_at=datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        dwell_seconds=20,
+        approach_door=True,
+        repeated_return=True,
+    )
+    result = scorer.score(
+        metadata,
+        metadata.occurred_at,
+        20,
+        [TrackRiskInput(decision="known", relationship="self", quality_score=0.9)],
+    )
+    assert result.level == "record"
+    assert result.score == 10
+    assert "仅识别到本人或家人" in result.reasons
+
+
+def test_friend_is_known_but_does_not_get_family_discount(settings):
+    scorer = RiskScorer(settings)
+    metadata = EventMetadata(
+        occurred_at=datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        dwell_seconds=20,
+        approach_door=True,
+        repeated_return=True,
+    )
+    result = scorer.score(
+        metadata,
+        metadata.occurred_at,
+        20,
+        [TrackRiskInput(decision="known", relationship="friend", quality_score=0.9)],
+    )
+    assert result.score == 50
+    assert "仅识别到本人或家人" not in result.reasons

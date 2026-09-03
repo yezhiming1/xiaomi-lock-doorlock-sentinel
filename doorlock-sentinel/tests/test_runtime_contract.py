@@ -23,7 +23,7 @@ def test_release_version_surfaces_are_consistent():
         )
     )
 
-    assert version == "0.0.5"
+    assert version == "0.0.6"
     assert __version__ == version
     assert package["version"] == version
     assert package_lock["version"] == version
@@ -34,6 +34,14 @@ def test_release_version_surfaces_are_consistent():
     assert f'org.opencontainers.image.version="{version}"' in (
         ROOT / "Dockerfile"
     ).read_text(encoding="utf-8")
+    upgrade_dockerfile = (ROOT / "Dockerfile.upgrade").read_text(encoding="utf-8")
+    upgrade_script = (ROOT / "scripts" / "build_upgrade_image.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.5" in upgrade_dockerfile
+    assert f'org.opencontainers.image.version="{version}"' in upgrade_dockerfile
+    assert "PREDECESSOR_IMAGE=doorlock-sentinel:0.0.5" in upgrade_script
+    assert f"TARGET_IMAGE=doorlock-sentinel:{version}" in upgrade_script
     index = (ROOT / "src" / "doorlock_sentinel" / "static" / "index.html").read_text(
         encoding="utf-8"
     )

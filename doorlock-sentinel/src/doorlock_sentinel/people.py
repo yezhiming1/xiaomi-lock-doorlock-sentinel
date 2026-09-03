@@ -28,7 +28,9 @@ from .recognition import (
 from .vector import pack_vector, unpack_vector
 
 RELATIONSHIP_LABELS = {
+    "self": "我",
     "family": "家人",
+    "friend": "朋友",
     "neighbor": "邻居",
     "courier": "快递员",
     "cleaner": "保洁",

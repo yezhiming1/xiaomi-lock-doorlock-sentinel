@@ -41,7 +41,7 @@ DOORLOCK_DETECTOR_SHA256=<models.lock.json 中的值>
 DOORLOCK_RECOGNIZER_SHA256=<models.lock.json 中的值>
 ```
 
-V0.0.4 的 N100 工作值延续 V0.0.3：
+V0.0.6 的 N100 工作值延续 V0.0.5：
 
 ```dotenv
 DOORLOCK_ORT_INTRA_THREADS=2
@@ -73,7 +73,7 @@ DOORLOCK_EXPECTED_SOURCE_COMMIT=<final-commit> \
 sh ./scripts/build_upgrade_image.sh
 ```
 
-`Dockerfile.upgrade` 当前只用于 V0.0.4 → V0.0.5 的代码层升级；它不替代规范 Dockerfile，
+`Dockerfile.upgrade` 当前只用于 V0.0.5 → V0.0.6 的代码层升级；它不替代规范 Dockerfile，
 不得用于依赖、基础镜像、系统包或 Node 运行代码发生变化的版本。正式记录必须注明使用了
 哪条构建路径，并保留前代镜像直到新版本消费者验收完成。
 
