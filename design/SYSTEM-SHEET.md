@@ -16,7 +16,7 @@
 | `/` | 登录后转到事件页 | redirect | no | high |
 | `/login` | 单密码安全登录并说明隐私边界 | paired intro + focused form | no | medium |
 | `/events` | 扫描近期录像、人物与处理状态 | dense list + detail drawer | yes | highest |
-| `/people` | 管理已确认人物和未知人物簇 | ledger rows + sample review | yes | high |
+| `/people` | 管理已确认人物和未知人物簇 | responsive confirmed-person grid + one pending disclosure + sample review | yes | high |
 | `/operations` | 查看失败、重试、备份回执与系统健康 | status ledger | yes | medium |
 | `/settings` | 控制训练期通知和安全会话 | form sections | yes | low |
 
@@ -44,13 +44,14 @@
 | link | navigation / inline | 2 | shell, details |
 | table | dense ledger | 1 | events, operations |
 | toggle | standard | 1 | settings |
+| disclosure | native details/summary: collapsed / expanded | 1 | people |
 
 **Non-control components**
 
 | component | variants | where used |
 |---|---|---|
 | status mark | healthy / pending / skipped / failed | all data routes |
-| person item | confirmed ledger row / unknown review / false-positive status | people, event detail |
+| person item | confirmed responsive card / unknown review inside pending disclosure / false-positive status | people, event detail |
 | evidence item | video / face / decision / audit | event detail |
 | notice | info / warning / error | all routes |
 | skeleton | row / detail | events, people |
@@ -64,6 +65,7 @@
 | select | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | ✓ | n/a |
 | link | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | ✓ |
 | toggle | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| disclosure | closed ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | open ✓ |
 | table | ✓ | row ✓ | controls ✓ | n/a | n/a | skeleton | ✓ | ✓ | row ✓ |
 
 | state | what it dims | measured contrast after dimming |

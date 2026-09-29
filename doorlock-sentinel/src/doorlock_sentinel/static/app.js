@@ -234,7 +234,7 @@ function clusterCard(cluster) {
   const largeFaceLabel = selected ? `未知人物样本 ${sampleNumber} 大图` : "暂无可用人物大图";
   const quality = selected ? `人脸质量 ${Math.round(selected.quality_score * 100)}%` : "暂无可用样本";
   const videoMeta = selected ? `${esc(formatDate(selected.occurred_at, true))} · ${selected.duration_seconds} 秒` : "没有对应录像";
-  return `<article class="cluster-card" data-cluster-id="${esc(cluster.id)}">
+  return `<article class="cluster-card" role="listitem" data-cluster-id="${esc(cluster.id)}">
     <div class="cluster-head"><div><h3>未知人物 ${esc(cluster.id.slice(-6))}</h3><p>${cluster.event_count} 次录像 · ${cluster.distinct_days} 天 · ${cluster.high_quality_count} 张高质量样本</p></div><span class="status pending">待确认</span></div>
     <div class="cluster-review"><div class="cluster-primary">${face(selected?.face_url || selected?.preview_url, largeFaceLabel, "cluster-face-large")}<strong>样本 ${sampleNumber || "—"}</strong><span>${quality}</span></div><div class="cluster-video-wrap">${video}<p>${videoMeta}</p></div></div>
     <div class="face-strip" role="group" aria-label="选择人物簇样本">${samples}</div>
@@ -244,12 +244,12 @@ function clusterCard(cluster) {
 
 function renderPeopleContent() {
   const peopleHtml = state.people.length
-    ? `<div class="people-list" role="list">${state.people.map((person) => `<article class="person-row" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || person.relationship)}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
+    ? `<div class="people-list" role="list">${state.people.map((person) => `<article class="person-card" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || person.relationship)}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
     : '<div class="empty"><strong>还没有已确认人物</strong><p>确认待核对的人物簇后，清晰代表样本会在这里持续积累。</p><button class="button quiet" data-action="scroll-to-clusters">查看待确认人物</button></div>';
   const clustersHtml = state.clusters.length
-    ? state.clusters.map(clusterCard).join("")
+    ? `<details class="pending-disclosure"><summary><span class="pending-disclosure-title">待确认</span><span class="pending-disclosure-count">${state.clusters.length} 组</span><span class="pending-disclosure-hint">展开查看样本、录像和核对操作</span></summary><div class="pending-clusters" role="list">${state.clusters.map(clusterCard).join("")}</div></details>`
     : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p><a class="button quiet" href="#operations">查看运行状态</a></div>';
-  content.innerHTML = `<section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section><section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">待确认人物簇</h2><p>选择样本查看大图和对应录像；多人同框仍保持独立。</p></div><span class="section-count">${state.clusters.length} 组</span></div>${clustersHtml}</section>`;
+  content.innerHTML = `<section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section><section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">待确认人物簇</h2><p>当前没有类别可供归组；展开后逐组核对，样本、录像与原有操作均保留。</p></div></div>${clustersHtml}</section>`;
 }
 
 async function renderPeople() {
@@ -286,9 +286,9 @@ async function renderOperations() {
   <section class="operation-section"><div class="section-head"><div><h2>下载器回报</h2><p>本系统只接收下载状态，不读取小米或 Home Assistant 凭据。</p></div></div>
   <div class="table-scroll" role="region" tabindex="0" aria-label="下载器回报记录"><table class="ledger-table"><thead><tr><th>下载器记录时间（北京时间）</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>${tableRows(system.download_reports || [], [
     { render: (row) => esc(formatDate(row.event_time, true)) },
-    { render: (row) => esc(row.state) },
+    { render: (row) => esc(window.DoorlockUiLabels.stateLabel(row.state)) },
     { render: (row) => esc(row.attempts) },
-    { class: "long", render: (row) => esc(row.error_code || "—") },
+    { class: "long", render: (row) => esc(window.DoorlockUiLabels.errorLabel(row.error_code)) },
   ])}</tbody></table></div></section>
   <section class="operation-section"><div class="section-head"><div><h2>人工操作与撤销</h2><p>命名、合并、拆分和误检决定均保留审计记录。</p></div></div>
   <div class="table-scroll" role="region" tabindex="0" aria-label="人工操作审计记录"><table class="ledger-table"><thead><tr><th>北京时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
