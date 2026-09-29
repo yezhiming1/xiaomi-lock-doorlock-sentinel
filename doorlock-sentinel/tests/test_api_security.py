@@ -89,6 +89,10 @@ def test_security_headers_cover_static_console(settings):
         assert app_js.headers["cache-control"] == "no-store"
         assert 'self: "我"' in app_js.text
         assert 'friend: "朋友"' in app_js.text
+        assert 'food_delivery: "外卖"' in app_js.text
+        assert app_js.text.index('food_delivery: "外卖"') < app_js.text.index(
+            'courier: "快递员"'
+        )
 
 
 def test_label_request_allows_omitted_or_blank_name():

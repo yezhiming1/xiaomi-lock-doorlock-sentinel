@@ -14,16 +14,16 @@
 | route | job (one line) | layout family | in the shell? | traffic |
 |---|---|---|---|---|
 | `/` | 登录后转到事件页 | redirect | no | high |
-| `/login` | 单密码安全登录 | focused form | no | medium |
+| `/login` | 单密码安全登录并说明隐私边界 | paired intro + focused form | no | medium |
 | `/events` | 扫描近期录像、人物与处理状态 | dense list + detail drawer | yes | highest |
-| `/people` | 管理已确认人物和未知人物簇 | gallery/list + detail | yes | high |
+| `/people` | 管理已确认人物和未知人物簇 | responsive confirmed-person grid + one pending disclosure + sample review | yes | high |
 | `/operations` | 查看失败、重试、备份回执与系统健康 | status ledger | yes | medium |
 | `/settings` | 控制训练期通知和安全会话 | form sections | yes | low |
 
 **The shell**
 
-- structure: 左侧窄导航、顶部当前视图标题与系统状态、主内容区；不显示技术堆栈。
-- collapses to (mobile): 顶部标题 + 底部四项导航；详情以全屏抽屉出现。
+- structure: 左侧窄导航、统一页眉和主内容区；宽屏主内容最大 1920px 并居中；系统状态留在导航底部与运行页，不显示技术堆栈。
+- collapses to (mobile): 顶部标题 + 底部四项导航；事件详情在列表之后展开，不产生页面级横向滚动。
 - current-route indicator: 图标、文字和 3px 底部/侧边墨蓝标记同时表达。
 
 **Build order**
@@ -44,13 +44,14 @@
 | link | navigation / inline | 2 | shell, details |
 | table | dense ledger | 1 | events, operations |
 | toggle | standard | 1 | settings |
+| disclosure | native details/summary: collapsed / expanded | 1 | people |
 
 **Non-control components**
 
 | component | variants | where used |
 |---|---|---|
 | status mark | healthy / pending / skipped / failed | all data routes |
-| person tile | known / unknown / false-positive | people, event detail |
+| person item | confirmed responsive card / unknown review inside pending disclosure / false-positive status | people, event detail |
 | evidence item | video / face / decision / audit | event detail |
 | notice | info / warning / error | all routes |
 | skeleton | row / detail | events, people |
@@ -64,6 +65,7 @@
 | select | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | n/a | ✓ | n/a |
 | link | ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | ✓ |
 | toggle | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | n/a | ✓ | ✓ |
+| disclosure | closed ✓ | ✓ | ✓ | ✓ | n/a | n/a | n/a | n/a | open ✓ |
 | table | ✓ | row ✓ | controls ✓ | n/a | n/a | skeleton | ✓ | ✓ | row ✓ |
 
 | state | what it dims | measured contrast after dimming |
@@ -84,7 +86,7 @@
 
 ## Density
 
-- **Tables:** 桌面每屏约 12 行；表头在页面滚动容器内固定；时间、大小与次数使用等宽数字；时间和状态可排序。
+- **Tables:** 桌面每屏约 12 行；保持原生表格语义，窄屏在局部容器滚动；时间、大小与次数使用 tabular figures；时间和状态可排序。
 - **Charts:** V0.0.1 不使用图表，以准确列表和状态汇总替代。
 - **Truncation:** 文件名和错误摘要单行截断；点击行或键盘 Enter 可打开完整值。
 

@@ -32,6 +32,7 @@ RELATIONSHIP_LABELS = {
     "family": "家人",
     "friend": "朋友",
     "neighbor": "邻居",
+    "food_delivery": "外卖",
     "courier": "快递员",
     "cleaner": "保洁",
     "visitor": "访客",
