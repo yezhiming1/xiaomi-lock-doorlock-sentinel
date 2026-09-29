@@ -19,6 +19,7 @@ const relationshipLabels = {
   family: "家人",
   friend: "朋友",
   neighbor: "邻居",
+  food_delivery: "外卖",
   courier: "快递员",
   cleaner: "保洁",
   visitor: "访客",
@@ -127,13 +128,13 @@ function setHeader(route) {
 
 function summary(data) {
   const counts = data.counts;
-  return `<div class="summary-strip">
-    <div class="summary-item"><span>录像记录</span><strong>${counts.events}</strong></div>
-    <div class="summary-item"><span>已确认人物</span><strong>${counts.people}</strong></div>
-    <div class="summary-item"><span>待确认人物簇</span><strong>${counts.review_clusters}</strong></div>
-    <div class="summary-item"><span>分析失败</span><strong>${counts.failed_analysis}</strong></div>
-    <div class="summary-item"><span>待备份回执</span><strong>${counts.backup_pending}</strong></div>
-  </div>`;
+  return `<dl class="summary-strip" aria-label="记录概览">
+    <div class="summary-item"><dt>录像记录</dt><dd>${counts.events}</dd></div>
+    <div class="summary-item"><dt>已确认人物</dt><dd>${counts.people}</dd></div>
+    <div class="summary-item"><dt>待确认人物簇</dt><dd>${counts.review_clusters}</dd></div>
+    <div class="summary-item"><dt>分析失败</dt><dd>${counts.failed_analysis}</dd></div>
+    <div class="summary-item"><dt>待备份回执</dt><dd>${counts.backup_pending}</dd></div>
+  </dl>`;
 }
 
 function eventRow(event) {
@@ -243,12 +244,12 @@ function clusterCard(cluster) {
 
 function renderPeopleContent() {
   const peopleHtml = state.people.length
-    ? `<div class="person-grid">${state.people.map((person) => `<article class="person-card">${face(person.face_url, person.display_name)}<h3>${esc(person.display_name)}</h3><p>${esc(relationshipLabels[person.relationship] || person.relationship)} · ${person.matched_events} 次 · ${person.distinct_days} 天</p><div class="card-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
-    : '<div class="empty"><strong>还没有已确认人物</strong><p>确认下方未知人物簇后，会在这里持续积累清晰代表样本。</p></div>';
+    ? `<div class="people-list" role="list">${state.people.map((person) => `<article class="person-row" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || person.relationship)}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
+    : '<div class="empty"><strong>还没有已确认人物</strong><p>确认待核对的人物簇后，清晰代表样本会在这里持续积累。</p><button class="button quiet" data-action="scroll-to-clusters">查看待确认人物</button></div>';
   const clustersHtml = state.clusters.length
     ? state.clusters.map(clusterCard).join("")
-    : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p></div>';
-  content.innerHTML = `<div class="section-head"><div><h2>已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div></div>${peopleHtml}<div class="section-head"><div><h2>待确认人物簇</h2><p>选择样本查看大图和对应录像；多人同框仍保持独立。</p></div></div>${clustersHtml}`;
+    : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p><a class="button quiet" href="#operations">查看运行状态</a></div>';
+  content.innerHTML = `<section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section><section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">待确认人物簇</h2><p>选择样本查看大图和对应录像；多人同框仍保持独立。</p></div><span class="section-count">${state.clusters.length} 组</span></div>${clustersHtml}</section>`;
 }
 
 async function renderPeople() {
@@ -267,53 +268,55 @@ async function renderOperations() {
   const [system, operations] = await Promise.all([api("/api/system"), api("/api/operations")]);
   const backup = system.backup_counts || {};
   const outbox = system.outbox_counts || {};
-  content.innerHTML = `<div class="system-grid">
-    <div class="system-cell"><span>识别服务</span><strong>${system.service.analysis_ready ? "已就绪" : "待处理"}</strong></div>
-    <div class="system-cell"><span>可用空间</span><strong>${bytes(system.storage.free_bytes)}</strong></div>
-    <div class="system-cell"><span>模型</span><strong>${esc(system.model.active ? "已锁定" : "未就绪")}</strong></div>
-    <div class="system-cell"><span>待备份回执</span><strong>${backup.pending || 0}</strong></div>
-    <div class="system-cell"><span>通知待发送</span><strong>${outbox.pending || 0}</strong></div>
-    <div class="system-cell"><span>通知死信</span><strong>${outbox.dead || 0}</strong></div>
-  </div>
-  <div class="section-head"><div><h2>需要处理的失败</h2><p>分析已经自动按 5、20、60 分钟重试；仍失败时在这里手工重试。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>北京时间</th><th>文件</th><th>原因</th><th>操作</th></tr></thead><tbody>${tableRows(system.failed_ingests || [], [
+  content.innerHTML = `<section class="operations-status" aria-labelledby="system-heading"><div class="section-head"><div><h2 id="system-heading">系统状态</h2><p>服务异常会在相应记录旁显示处理方式。</p></div></div><dl class="system-grid">
+    <div class="system-cell"><dt>识别服务</dt><dd>${system.service.analysis_ready ? "已就绪" : "待处理"}</dd></div>
+    <div class="system-cell"><dt>可用空间</dt><dd>${bytes(system.storage.free_bytes)}</dd></div>
+    <div class="system-cell"><dt>模型</dt><dd>${esc(system.model.active ? "已锁定" : "未就绪")}</dd></div>
+    <div class="system-cell"><dt>待备份回执</dt><dd>${backup.pending || 0}</dd></div>
+    <div class="system-cell"><dt>通知待发送</dt><dd>${outbox.pending || 0}</dd></div>
+    <div class="system-cell"><dt>通知死信</dt><dd>${outbox.dead || 0}</dd></div>
+  </dl></section>
+  <section class="operation-section"><div class="section-head"><div><h2>需要处理的失败</h2><p>分析已经自动按 5、20、60 分钟重试；仍失败时在这里手工重试。</p></div></div>
+  <div class="table-scroll" role="region" tabindex="0" aria-label="失败分析记录"><table class="ledger-table"><thead><tr><th>北京时间</th><th>文件</th><th>原因</th><th>操作</th></tr></thead><tbody>${tableRows(system.failed_ingests || [], [
     { render: (row) => esc(formatDate(row.updated_at, true)) },
     { class: "long", render: (row) => esc(row.file_name) },
     { class: "long", render: (row) => esc(row.error_code || row.error || "未知原因") },
     { render: (row) => `<button class="button small quiet" data-action="retry-ingest" data-id="${esc(row.id)}">重新分析</button>` },
-  ])}</tbody></table>
-  <div class="section-head"><div><h2>下载器回报</h2><p>本系统只接收下载状态，不读取小米或 Home Assistant 凭据。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>下载器记录时间（北京时间）</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>${tableRows(system.download_reports || [], [
+  ])}</tbody></table></div></section>
+  <section class="operation-section"><div class="section-head"><div><h2>下载器回报</h2><p>本系统只接收下载状态，不读取小米或 Home Assistant 凭据。</p></div></div>
+  <div class="table-scroll" role="region" tabindex="0" aria-label="下载器回报记录"><table class="ledger-table"><thead><tr><th>下载器记录时间（北京时间）</th><th>状态</th><th>尝试</th><th>错误</th></tr></thead><tbody>${tableRows(system.download_reports || [], [
     { render: (row) => esc(formatDate(row.event_time, true)) },
     { render: (row) => esc(row.state) },
     { render: (row) => esc(row.attempts) },
     { class: "long", render: (row) => esc(row.error_code || "—") },
-  ])}</tbody></table>
-  <div class="section-head"><div><h2>人工操作与撤销</h2><p>命名、合并、拆分和误检决定均保留审计记录。</p></div></div>
-  <table class="ledger-table"><thead><tr><th>北京时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
+  ])}</tbody></table></div></section>
+  <section class="operation-section"><div class="section-head"><div><h2>人工操作与撤销</h2><p>命名、合并、拆分和误检决定均保留审计记录。</p></div></div>
+  <div class="table-scroll" role="region" tabindex="0" aria-label="人工操作审计记录"><table class="ledger-table"><thead><tr><th>北京时间</th><th>操作</th><th>对象</th><th>状态</th></tr></thead><tbody>${tableRows(operations.items || [], [
     { render: (row) => esc(formatDate(row.created_at, true)) },
     { render: (row) => esc(row.operation_label || "人工操作") },
     { class: "long", render: (row) => esc(row.subject_label || "人工操作记录") },
     { render: (row) => row.undone_at ? "已撤销" : row.operation === "undo" ? "撤销记录" : `<button class="button small quiet" data-action="undo" data-id="${esc(row.id)}">撤销</button>` },
-  ])}</tbody></table>`;
+  ])}</tbody></table></div></section>`;
 }
 
 async function renderSettings() {
   const data = await api("/api/bootstrap");
   const notifications = data.notifications;
-  content.innerHTML = `<section class="settings-sheet">
+  content.innerHTML = `<div class="settings-page"><section class="settings-group" aria-labelledby="notification-settings-heading"><div class="section-head"><div><h2 id="notification-settings-heading">通知偏好</h2><p>训练期间身份与风险提醒默认关闭，运行故障提醒保持开启。</p></div></div><div class="settings-sheet">
     <div class="setting-row"><div><h3>身份识别通知</h3><p>训练稳定后可开启；当前人物识别结果仍会保存。</p></div><button class="switch" data-setting="identity_notifications_enabled" role="switch" aria-checked="${notifications.identity_notifications_enabled}" aria-label="身份识别通知"></button></div>
     <div class="setting-row"><div><h3>风险事件通知</h3><p>开启后，仅对达到风险阈值的记录发送通知。</p></div><button class="switch" data-setting="risk_notifications_enabled" role="switch" aria-checked="${notifications.risk_notifications_enabled}" aria-label="风险事件通知"></button></div>
     <div class="setting-row"><div><h3>运行故障通知</h3><p>下载、分析或企业微信持续失败时通知；为防止静默丢失，始终开启。</p></div><button class="switch" role="switch" aria-checked="true" aria-label="运行故障通知" disabled></button></div>
+  </div></section><section class="settings-group" aria-labelledby="session-settings-heading"><div class="section-head"><div><h2 id="session-settings-heading">登录会话</h2><p>服务端会话最长保留 12 小时，您可以随时撤销。</p></div></div><div class="settings-sheet">
     <div class="setting-row"><div><h3>退出当前设备</h3><p>撤销当前 12 小时服务端会话。</p></div><button class="button quiet" data-action="logout">退出</button></div>
     <div class="setting-row"><div><h3>撤销所有登录</h3><p>所有已登录设备需要重新输入密码。</p></div><button class="button danger" data-action="revoke-all">全部退出</button></div>
-  </section>`;
+  </div></section></div>`;
 }
 
 async function loadRoute() {
   const route = location.hash.replace(/^#/, "") || "events";
   state.route = routeCopy[route] ? route : "events";
   setHeader(state.route);
+  content.setAttribute("aria-busy", "true");
   showLoading();
   try {
     if (state.route === "events") await renderEvents();
@@ -323,6 +326,8 @@ async function loadRoute() {
   } catch (error) {
     if (!$("#login").hidden) return;
     showError(error);
+  } finally {
+    content.setAttribute("aria-busy", "false");
   }
 }
 
@@ -433,6 +438,7 @@ document.addEventListener("click", async (event) => {
   const id = target.dataset.id;
   try {
     if (action === "reload") await loadRoute();
+    else if (action === "scroll-to-clusters") document.querySelector("#review-clusters")?.scrollIntoView();
     else if (action === "select-event") { state.selectedEvent = state.events.find((item) => item.id === id); state.selectedTrack = 0; await renderEvents(); }
     else if (action === "select-track") { state.selectedTrack = Number(target.dataset.index); await renderEvents(); }
     else if (action === "select-cluster-track") {
@@ -464,19 +470,23 @@ $("#modal-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!state.modalHandler) return;
   const submit = $("#modal-submit");
+  const label = submit.textContent;
   submit.disabled = true;
+  submit.textContent = "正在保存…";
   $("#modal-error").textContent = "";
   try { await state.modalHandler(); }
   catch (error) { $("#modal-error").textContent = error.message; }
-  finally { submit.disabled = false; }
+  finally { submit.disabled = false; submit.textContent = label; }
 });
 
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const errorNode = $("#login-error");
   const button = event.currentTarget.querySelector("button");
+  const label = button.textContent;
   errorNode.textContent = "";
   button.disabled = true;
+  button.textContent = "正在核对…";
   try {
     const result = await api("/api/session/login", { method: "POST", body: JSON.stringify({ password: $("#password").value }) });
     state.csrf = result.csrf_token;
@@ -484,11 +494,14 @@ $("#login-form").addEventListener("submit", async (event) => {
     showShell();
     await loadRoute();
   } catch (error) { errorNode.textContent = error.message; }
-  finally { button.disabled = false; }
+  finally { button.disabled = false; button.textContent = label; }
 });
 
 $("#refresh").addEventListener("click", loadRoute);
-window.addEventListener("hashchange", loadRoute);
+window.addEventListener("hashchange", async () => {
+  await loadRoute();
+  if (!$("#shell").hidden) $("#page-title").focus({ preventScroll: true });
+});
 
 async function init() {
   try {

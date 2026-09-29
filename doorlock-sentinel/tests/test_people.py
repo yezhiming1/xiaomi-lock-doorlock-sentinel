@@ -15,6 +15,7 @@ from doorlock_sentinel.models import (
     UnknownClusterMember,
 )
 from doorlock_sentinel.people import (
+    RELATIONSHIP_LABELS,
     assign_cluster_to_person,
     label_cluster,
     merge_people,
@@ -157,9 +158,9 @@ def test_blank_names_are_numbered_by_relationship(database, settings):
 
 @pytest.mark.parametrize(
     ("relationship", "expected_name"),
-    (("self", "我 1"), ("friend", "朋友 1")),
+    (("self", "我 1"), ("friend", "朋友 1"), ("food_delivery", "外卖 1")),
 )
-def test_self_and_friend_relationships_use_existing_numbering(
+def test_new_relationships_use_existing_numbering(
     database,
     settings,
     relationship,
@@ -178,6 +179,12 @@ def test_self_and_friend_relationships_use_existing_numbering(
 
         assert result["display_name"] == expected_name
         assert result["relationship"] == relationship
+
+
+def test_food_delivery_is_ordered_before_courier():
+    relationships = list(RELATIONSHIP_LABELS)
+    assert RELATIONSHIP_LABELS["food_delivery"] == "外卖"
+    assert relationships.index("food_delivery") < relationships.index("courier")
 
 
 def test_blank_name_continues_historical_relationship_number(database, settings):

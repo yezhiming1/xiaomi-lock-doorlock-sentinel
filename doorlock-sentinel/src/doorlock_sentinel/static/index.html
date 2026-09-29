@@ -4,48 +4,65 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <title>门锁观察簿 V0.0.6</title>
-  <link rel="stylesheet" href="/app.css?v=0.0.6">
-  <script src="/time-format.js?v=0.0.6" defer></script>
-  <script src="/app.js?v=0.0.6" defer></script>
+  <title>门锁观察簿 V0.0.7</title>
+  <link rel="stylesheet" href="/app.css?v=0.0.7">
+  <script src="/time-format.js?v=0.0.7" defer></script>
+  <script src="/app.js?v=0.0.7" defer></script>
 </head>
 <body>
   <section id="login" class="login" hidden>
-    <div class="login-sheet">
-      <span class="lock-mark" aria-hidden="true"></span>
-      <h1>门锁观察簿 <span class="app-version">V0.0.6</span></h1>
-      <p class="muted">只需输入管理密码。识别结果只用于整理录像，永远不会触发开锁。</p>
-      <form id="login-form" class="login-form">
-        <label for="password">管理密码</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256">
-        <button class="button primary" type="submit">进入观察簿</button>
-        <p id="login-error" class="form-error" role="alert"></p>
-      </form>
+    <div class="login-layout">
+      <div class="login-intro">
+        <a class="login-brand" href="#events" aria-label="门锁观察簿 V0.0.7">
+          <span class="lock-mark" aria-hidden="true"></span>
+          <span><strong>门锁观察簿</strong><small>V0.0.7 · 家庭记录</small></span>
+        </a>
+        <div class="login-story">
+          <h1>门前的每一次经过，<br>都有据可查。</h1>
+          <p>查看录像、核对人物样本，并了解系统如何得出每一次判断。</p>
+          <div class="privacy-note">
+            <span class="privacy-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.9 7.7 7 10 4.1-2.3 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <span><strong>只整理，不开锁</strong><small>识别结果只用于整理和后续通知，永远不会触发开锁。</small></span>
+          </div>
+        </div>
+        <p class="login-quiet">仅供家庭管理员使用 · 登录会话最长 12 小时</p>
+      </div>
+      <div class="login-panel">
+        <h2>欢迎回来</h2>
+        <p class="login-prompt">输入管理密码，继续核对门口记录。</p>
+        <form id="login-form" class="login-form">
+          <label for="password">管理密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" aria-describedby="login-error" required maxlength="256">
+          <button class="button primary" type="submit">进入观察簿</button>
+          <p id="login-error" class="form-error" role="alert" aria-live="polite"></p>
+        </form>
+        <p class="login-footnote">服务端仅保存可撤销会话；退出后需要重新输入密码。</p>
+      </div>
     </div>
   </section>
 
   <div id="shell" class="app" hidden>
     <a class="skip-link" href="#content">跳到主要内容</a>
     <aside class="rail">
-      <a class="brand" href="#events" aria-label="门锁观察簿 V0.0.6 首页">
+      <a class="brand" href="#events" aria-label="门锁观察簿 V0.0.7 首页">
         <span class="lock-mark small" aria-hidden="true"></span>
-        <span><strong>门锁观察簿 <span class="app-version">V0.0.6</span></strong><small>持续学习中</small></span>
+        <span><strong>门锁观察簿 <span class="app-version">V0.0.7</span></strong><small>门口事件记录</small></span>
       </a>
       <nav aria-label="主导航">
-        <a href="#events" data-route="events"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 6h13M7 12h13M7 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span><span>事件</span></a>
-        <a href="#people" data-route="people"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.5-4.3 2.7-6.5 6.5-6.5s6 2.2 6.5 6.5"/></svg></span><span>人物</span></a>
-        <a href="#operations" data-route="operations"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-4 4 8 2-4h6"/></svg></span><span>运行</span></a>
-        <a href="#settings" data-route="settings"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg></span><span>设置</span></a>
+        <a href="#events" data-route="events" aria-label="事件" title="事件"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 6h13M7 12h13M7 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span><span>事件</span></a>
+        <a href="#people" data-route="people" aria-label="人物" title="人物"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.5-4.3 2.7-6.5 6.5-6.5s6 2.2 6.5 6.5"/></svg></span><span>人物</span></a>
+        <a href="#operations" data-route="operations" aria-label="运行" title="运行"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-4 4 8 2-4h6"/></svg></span><span>运行</span></a>
+        <a href="#settings" data-route="settings" aria-label="设置" title="设置"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2"/><circle cx="15" cy="17" r="2"/></svg></span><span>设置</span></a>
       </nav>
-      <div class="rail-status"><strong id="rail-health">正在核对</strong><span id="rail-note">连接 NAS 服务</span></div>
+      <div class="rail-status"><span class="rail-status-label">系统状态</span><strong id="rail-health">正在核对</strong><span id="rail-note">连接服务中</span></div>
     </aside>
-    <main>
+    <main id="main-content">
       <header class="page-header">
-        <div><h1 id="page-title">事件</h1><p id="page-subtitle" class="muted"></p></div>
-        <button id="refresh" class="button quiet" type="button">刷新</button>
+        <div><h1 id="page-title" tabindex="-1">事件</h1><p id="page-subtitle" class="muted"></p></div>
+        <button id="refresh" class="button quiet refresh-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.7-2L20 12M4 12l2.8 5A7 7 0 0 0 18.5 15"/></svg><span>刷新记录</span></button>
       </header>
       <div id="notice" class="notice" hidden role="status"></div>
-      <div id="content" aria-live="polite"><div class="loading"><span></span>正在整理记录…</div></div>
+      <div id="content" aria-live="polite" aria-busy="true"><div class="loading"><span></span>正在整理记录…</div></div>
     </main>
   </div>
 

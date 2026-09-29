@@ -74,3 +74,21 @@ def test_friend_is_known_but_does_not_get_family_discount(settings):
     )
     assert result.score == 50
     assert "仅识别到本人或家人" not in result.reasons
+
+
+def test_food_delivery_is_known_but_does_not_get_family_discount(settings):
+    scorer = RiskScorer(settings)
+    metadata = EventMetadata(
+        occurred_at=datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        dwell_seconds=20,
+        approach_door=True,
+        repeated_return=True,
+    )
+    result = scorer.score(
+        metadata,
+        metadata.occurred_at,
+        20,
+        [TrackRiskInput(decision="known", relationship="food_delivery", quality_score=0.9)],
+    )
+    assert result.score == 50
+    assert "仅识别到本人或家人" not in result.reasons

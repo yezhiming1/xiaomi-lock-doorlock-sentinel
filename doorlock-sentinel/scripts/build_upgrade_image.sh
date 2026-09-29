@@ -2,8 +2,9 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-PREDECESSOR_IMAGE=doorlock-sentinel:0.0.5
-TARGET_IMAGE=doorlock-sentinel:0.0.6
+PREDECESSOR_IMAGE=doorlock-sentinel:0.0.6
+TARGET_IMAGE=doorlock-sentinel:0.0.7
+CONTRACT_CONTAINER=doorlock-sentinel-v0.0.7-contract
 
 if [ -z "${DOORLOCK_EXPECTED_PREDECESSOR_IMAGE_ID:-}" ]; then
   printf '%s\n' 'UPGRADE_BUILD_FAIL expected predecessor image ID is required' >&2
@@ -36,13 +37,23 @@ docker build \
 
 label_version=$(docker image inspect "$TARGET_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
 label_revision=$(docker image inspect "$TARGET_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
-if [ "$label_version" != "0.0.6" ] || [ "$label_revision" != "$actual_source" ]; then
+if [ "$label_version" != "0.0.7" ] || [ "$label_revision" != "$actual_source" ]; then
   printf '%s\n' 'UPGRADE_BUILD_FAIL output image identity mismatch' >&2
   exit 5
 fi
 
-docker run --rm --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=32m \
+if docker container inspect "$CONTRACT_CONTAINER" >/dev/null 2>&1; then
+  printf '%s\n' 'UPGRADE_BUILD_FAIL contract container name is already in use' >&2
+  exit 6
+fi
+
+docker run --rm --name "$CONTRACT_CONTAINER" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=32m \
   --entrypoint /opt/venv/bin/python "$TARGET_IMAGE" \
-  -c 'import importlib.metadata as m; import doorlock_sentinel as d; assert d.__version__ == m.version("doorlock-sentinel") == "0.0.6"'
+  -c 'import importlib.metadata as m; import doorlock_sentinel as d; assert d.__version__ == m.version("doorlock-sentinel") == "0.0.7"'
+
+if docker container inspect "$CONTRACT_CONTAINER" >/dev/null 2>&1; then
+  printf '%s\n' 'UPGRADE_BUILD_FAIL contract container residue remains' >&2
+  exit 7
+fi
 
 printf '%s\n' "UPGRADE_BUILD_PASS source=$actual_source predecessor=$actual_predecessor"
