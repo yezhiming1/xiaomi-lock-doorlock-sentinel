@@ -51,18 +51,9 @@ def serialized_authenticated(request: Request):
     yield from _authenticated_context(request, serialized=True)
 
 
-def serialized_writable(
-    request: Request,
-    context: Annotated[AuthContext, Depends(serialized_authenticated)],
-    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
-) -> AuthContext:
-    context.security.require_csrf(context.web_session, request, csrf_token)
-    return context
-
-
 def writable(
     request: Request,
-    context: Annotated[AuthContext, Depends(authenticated)],
+    context: Annotated[AuthContext, Depends(serialized_authenticated)],
     csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
 ) -> AuthContext:
     context.security.require_csrf(context.web_session, request, csrf_token)

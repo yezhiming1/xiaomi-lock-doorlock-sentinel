@@ -42,7 +42,7 @@ from .people import (
     split_cluster,
     undo_operation,
 )
-from .web_common import AuthContext, authenticated, serialized_writable, writable
+from .web_common import AuthContext, authenticated, writable
 
 router = APIRouter(prefix="/api", tags=["console"])
 
@@ -653,7 +653,7 @@ def cluster_conflict_review(
 def cluster_assign_person(
     cluster_id: str,
     body: AssignClusterRequest,
-    context: Annotated[AuthContext, Depends(serialized_writable)],
+    context: Annotated[AuthContext, Depends(writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -777,7 +777,7 @@ def cluster_false_positive(
 def operation_undo(
     operation_id: str,
     body: IdempotentRequest,
-    context: Annotated[AuthContext, Depends(serialized_writable)],
+    context: Annotated[AuthContext, Depends(writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,

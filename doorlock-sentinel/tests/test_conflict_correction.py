@@ -3,6 +3,7 @@ from threading import Event as ThreadEvent
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 from test_people import _cluster_with_tracks
 
 from doorlock_sentinel.api import create_app
@@ -266,3 +267,76 @@ def test_concurrent_api_corrections_reject_second_stale_request(database, settin
         )
         assert session.query(CannotLink).count() == 0
         assert session.get(type(cluster), cid).version == 2
+
+
+def test_concurrent_people_merge_cannot_leave_correction_on_merged_person(
+    database, settings, monkeypatch
+):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        destination = Person(display_name="另一个合成人物", relationship="neighbor")
+        session.add(destination)
+        session.flush()
+        cid, pid, did, conflict_id = cluster.id, person.id, destination.id, conflict.id
+    original = Session.scalars
+    merge_read, release_merge, correction_started = ThreadEvent(), ThreadEvent(), ThreadEvent()
+
+    def controlled_scalars(session, statement, *args, **kwargs):
+        result = original(session, statement, *args, **kwargs)
+        sql = str(statement)
+        if (
+            "FROM face_tracks" in sql
+            and "face_tracks.person_id =" in sql
+            and pid in statement.compile().params.values()
+            and not merge_read.is_set()
+        ):
+            rows = list(result)
+            merge_read.set()
+            assert release_merge.wait(10)
+            return iter(rows)
+        return result
+
+    with TestClient(create_app(settings), base_url="http://testserver") as client:
+        csrf = client.post(
+            "/api/session/login", json={"password": "correct horse battery staple"}
+        ).json()["csrf_token"]
+        headers = {"X-CSRF-Token": csrf, "Origin": "http://testserver"}
+        review = client.get(f"/api/clusters/{cid}/person-conflicts?target_person_id={pid}").json()
+        monkeypatch.setattr(Session, "scalars", controlled_scalars)
+
+        def merge():
+            return client.post(
+                "/api/people/merge",
+                json={
+                    "source_person_id": pid,
+                    "target_person_id": did,
+                    "idempotency_key": "cross-route-merge",
+                },
+                headers=headers,
+            )
+
+        def correct():
+            correction_started.set()
+            return client.post(
+                f"/api/clusters/{cid}/assign-person",
+                json={
+                    "target_person_id": pid,
+                    "idempotency_key": "cross-route-correct",
+                    "review_revision": review["review_revision"],
+                    "conflict_corrections": [{"id": conflict_id, "reason": "reflection"}],
+                },
+                headers=headers,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            merging = executor.submit(merge)
+            assert merge_read.wait(10)
+            correcting = executor.submit(correct)
+            assert correction_started.wait(10)
+            release_merge.set()
+            assert merging.result(timeout=15).status_code == 200
+            assert correcting.result(timeout=15).status_code == 409
+    with database.session() as session:
+        assert session.query(FaceTrack).filter_by(person_id=pid).count() == 0
+        assert session.get(CannotLink, conflict_id) is not None
+        assert session.get(type(cluster), cid).labeled_person_id is None
