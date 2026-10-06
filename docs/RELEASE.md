@@ -1,5 +1,38 @@
 # 发布记录
 
+## V0.1.1 部署终态
+
+状态：DEPLOYED / RELEASE_GATE_OPEN。两项连续核对修复已在既有 NAS 上线。
+浏览器清理可信调用锚点不可获得（UNKNOWN / TRUSTED_ANCHORS_UNAVAILABLE），
+不创建正式标签或 GitHub Release。实际两任务标签关闭，15 个原有标签保留，
+视口与控制会话重置已直接观察；这些不是可信链机械门禁 PASS。
+
+| 证据 | V0.1.1 当前 | V0.1.0 前代 |
+|---|---|---|
+| 类型 | NON_INSTALLER_RELEASE，无安装器 | 可运行 Docker 恢复集 |
+| 镜像 | sha256:856f4ef884c6173b509389f1e3bbd20f95a50536ff52279f4d19369fce898f5d | sha256:994a03486fd5cdbb0df1ac8121a4449d156f3e001bfa8a56a47c636c1714f24a |
+| 源码 ZIP SHA-256 | ac6ac6fccbd533c2251b6a4d6ce7544d27a9312b465ad03f7fc873049a9b3bb3 | c29c1068c93bfcc2df13542cd118d57e009622eeacd01efb61810479c1e2cf04 |
+| 镜像归档 SHA-256 | 4f3400d567b947f84a96b631043feb29f1a95b377d22ef8dc83f5673186fe0cf | f3d3b4b82a5c0c4bb9a564b8ebe4529fdd6c9175803070fccf05f89c3412fc45 |
+| 身份与恢复 | 版本/提交、130 文件 ZIP 与 Git 字节相等 | 镜像、配置、在线 SQLite 及 10 文件摘要清单通过 |
+
+- 制品提交 a3d234c626a5deb22d2c112684dd9237480c0764，PR #19 已合并；
+  main a5b6988 的应用树与制品相同，CI validate 51 秒 PASS，包含迁移往返、
+  合成烟雾、Python 54、前端 Node 13、通知 Node 4、类型、审计、Compose 等完整检查。
+- NAS 候选只读、network none、tmpfs 合成数据验证版本、live/ready、样式、
+  认证、CSRF 和退出通过。升级构建绑定前代镜像与源提交，无依赖/运行配置变化。
+- 生产回读镜像、新版、健康零重启、真实双进程、live/ready、配置语义相等、
+  数据库 integrity/FK/schema 和业务计数不减少通过；不触碰媒体、下载器或网络。
+- 合成 Edge 连续两次成功合并后仍展开且下一张默认上次目标；取消、同框冲突不覆盖，
+  折叠刷新保持。1440/768/390 截图、手机无横向溢出、44px 按钮与 Escape 返回焦点通过。
+- 真实 Edge 公网页面 V0.1.1、已有登录、10 类入口、展开/折叠刷新与合并表单取消通过。
+  未执行真实人物合并；实际身份准确率、辅助阅读器和最大系统字号 UNKNOWN。
+- 临时测试与契约容器不存在；两临时 NAS 脚本按精确摘要核验后移除，本地恢复副本保留。
+- 恢复位置是本次私有部署目录的 rollback-v010。使用其 compose.previous.yaml、
+  production.env、compose.nas.yaml 与 V0.1.0 镜像回退，仅更新本服务，保留当前数据库；
+  之后回读版本、健康、双进程、配置、数据库与真实网页。不用旧快照覆盖正在使用的数据。
+
+下方候选为历史，不描述当前部署状态。
+
 ## V0.1.1 候选
 
 NON_INSTALLER_RELEASE，既有 Docker 服务，无安装器。
