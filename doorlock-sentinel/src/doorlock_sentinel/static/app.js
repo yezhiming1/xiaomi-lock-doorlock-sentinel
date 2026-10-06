@@ -10,6 +10,7 @@ const state = {
   pendingOpen: false,
   lastMergeTarget: "",
   modalHandler: null,
+  modalRequest: 0,
   viewedPerson: null,
   viewerKind: "face",
   viewerRequest: 0,
@@ -94,6 +95,7 @@ async function api(path, options = {}) {
 }
 
 function showLogin() {
+  if (modal.open) modal.close();
   if ($("#person-viewer").open) $("#person-viewer").close();
   state.csrf = "";
   state.pendingOpen = false;
@@ -373,6 +375,7 @@ function updateAutomaticNameHint() {
 }
 
 function openModal(title, body, submitLabel, handler) {
+  state.modalRequest++;
   $("#modal-title").textContent = title;
   $("#modal-body").innerHTML = body;
   $("#modal-submit").textContent = submitLabel;
@@ -426,6 +429,13 @@ function mergeCluster(sourceId) {
   openModal("合并人物", `<p>已核对的人物优先显示；仅在您确认是同一个人时合并，同框冲突会被系统拒绝。</p><div class="field"><label for="modal-target">合并到</label><select id="modal-target" aria-describedby="modal-target-hint">${groups}</select><p class="field-hint" id="modal-target-hint">并入已确认人物后，后续清晰样本会继续归入该人物。</p></div>`, "确认合并", async () => {
     const [targetType, targetId] = $("#modal-target").value.split(":", 2);
     if (targetType === "person") {
+      const request = state.modalRequest;
+      const review = await api(`/api/clusters/${encodeURIComponent(sourceId)}/person-conflicts?target_person_id=${encodeURIComponent(targetId)}`);
+      if (!modal.open || request !== state.modalRequest || !state.csrf) return;
+      if (review.items.length) {
+        reviewMergeConflicts(sourceId, targetId, review);
+        return;
+      }
       await mutate(`/api/clusters/${sourceId}/assign-person`, "POST", { target_person_id: targetId, idempotency_key: idempotency() }, "待确认人物已并入已确认人物，可在运行记录中撤销");
       if (state.csrf) state.lastMergeTarget = `person:${targetId}`;
       return;
@@ -434,6 +444,26 @@ function mergeCluster(sourceId) {
     if (state.csrf) state.lastMergeTarget = `cluster:${targetId}`;
   });
   restoreMergeTarget();
+}
+
+function reviewMergeConflicts(sourceId, targetId, review) {
+  const person = review.target_person || state.people.find(item => item.id === targetId);
+  const sample = (track, label) => `<figure><figcaption>${label} · 代表场景</figcaption>${track.preview_url ? `<img src="${esc(track.preview_url)}" alt="${label}代表场景（不保证是冲突帧）">` : '<p>代表场景不可用，请核对原始录像。</p>'}</figure>`;
+  const items = review.items.map((item, index) => `<section class="conflict-item"><h3>冲突 ${index + 1}</h3><div class="conflict-evidence">${sample(item.left, "样本 A")}${sample(item.right, "样本 B")}</div>${item.video_url ? `<video controls preload="metadata" src="${esc(item.video_url)}" aria-label="冲突 ${index + 1} 的原始录像"></video>` : '<p>原始录像不在本地。证据不足时请取消。</p>'}<div class="field"><label for="conflict-reason-${index}">这条冲突的误判原因</label><select id="conflict-reason-${index}"><option value="">请选择原因</option><option value="reflection">同一个人的倒影</option><option value="duplicate_detection">同一个人被重复检测</option></select></div><label class="conflict-confirm"><input type="checkbox" id="conflict-confirm-${index}"><span>我已核对：这是同一个人，不是同框中的两个人</span></label></section>`).join("");
+  openModal("核查同框冲突", `<div class="conflict-review"><p>准备并入：${esc(person?.display_name || "所选人物")}。只纠正下列约束，不关闭其他同框保护。</p><p class="muted">以下是代表样本，可能不是触发冲突的同一帧。旧记录未保存精确冲突帧位置，请结合原始录像逐项核对；不确定时取消。</p>${items}<p>纠错与合并会一起保存，可在运行记录中撤销。</p></div>`, "纠错并合并", async () => {
+    const corrections = review.items.map((item, index) => {
+      const reason = $(`#conflict-reason-${index}`).value;
+      if (!reason || !$(`#conflict-confirm-${index}`).checked) throw new Error(`请先选择冲突 ${index + 1} 的原因，并确认已核对是同一个人`);
+      return { id: item.id, reason };
+    });
+    await mutate(`/api/clusters/${sourceId}/assign-person`, "POST", { target_person_id: targetId, conflict_corrections: corrections, review_revision: review.review_revision, idempotency_key: idempotency() }, "误判已纠正并合并，可在运行记录中撤销");
+    if (state.csrf) state.lastMergeTarget = `person:${targetId}`;
+  });
+  document.querySelectorAll('.conflict-evidence img').forEach(img => img.addEventListener('error', () => {
+    const message = document.createElement('p');
+    message.textContent = '图片无法加载，请核对原始录像；证据不足时取消。';
+    img.replaceWith(message);
+  }, { once: true }));
 }
 
 function splitCluster(clusterId) {
@@ -570,13 +600,16 @@ $("#modal-form").addEventListener("submit", async (event) => {
   if (!state.modalHandler) return;
   const submit = $("#modal-submit");
   const label = submit.textContent;
+  const handler = state.modalHandler;
   submit.disabled = true;
   submit.textContent = "正在保存…";
   $("#modal-error").textContent = "";
-  try { await state.modalHandler(); }
-  catch (error) { $("#modal-error").textContent = error.message; }
-  finally { submit.disabled = false; submit.textContent = label; }
+  try { await handler(); }
+  catch (error) { if (state.modalHandler === handler && modal.open) $("#modal-error").textContent = error.message; }
+  finally { submit.disabled = false; if (state.modalHandler === handler) submit.textContent = label; }
 });
+
+modal.addEventListener("close", () => { state.modalRequest++; state.modalHandler = null; });
 
 $("#login-form").addEventListener("submit", async (event) => {
   event.preventDefault();

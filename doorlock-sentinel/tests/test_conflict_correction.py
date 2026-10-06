@@ -1,0 +1,208 @@
+import pytest
+from fastapi.testclient import TestClient
+from test_people import _cluster_with_tracks
+
+from doorlock_sentinel.api import create_app
+from doorlock_sentinel.models import CannotLink, FaceTrack, ManualOperation, Person
+from doorlock_sentinel.people import (
+    assign_cluster_to_person,
+    cluster_person_conflicts,
+    undo_operation,
+)
+
+
+def fixture(session, settings):
+    person = Person(display_name="合成人物", relationship="neighbor")
+    session.add(person)
+    session.flush()
+    cluster = _cluster_with_tracks(session, settings, count=1, start_index=900)
+    source = session.query(FaceTrack).filter_by(unknown_cluster_id=cluster.id).one()
+    target = FaceTrack(
+        event_id=source.event_id,
+        track_index=1,
+        model_id=source.model_id,
+        embedding=source.embedding,
+        embedding_dimension=4,
+        quality_score=0.9,
+        person_id=person.id,
+    )
+    session.add(target)
+    session.flush()
+    left, right = sorted((source.id, target.id))
+    conflict = CannotLink(left_track_id=left, right_track_id=right, reason="same_frame")
+    session.add(conflict)
+    session.flush()
+    return cluster, person, conflict
+
+
+def correction(conflict):
+    return [{"id": conflict.id, "reason": "reflection"}]
+
+
+def test_correction_is_exact_idempotent_audited_and_undo_restores_constraint(database, settings):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        rows, revision = cluster_person_conflicts(session, cluster.id, person.id)
+        assert [row.id for row in rows] == [conflict.id]
+        kwargs = dict(
+            cluster_id=cluster.id,
+            target_person_id=person.id,
+            idempotency_key="correct-reflection-0001",
+            conflict_corrections=correction(conflict),
+            review_revision=revision,
+        )
+        result = assign_cluster_to_person(session, settings, **kwargs)
+        assert result["corrected_conflict_count"] == 1
+        assert session.query(CannotLink).count() == 0
+        assert assign_cluster_to_person(session, settings, **kwargs) == result
+        with pytest.raises(ValueError, match="请求已变化"):
+            assign_cluster_to_person(session, settings, **{**kwargs, "target_person_id": "other"})
+        op = session.query(ManualOperation).one()
+        assert op.before_json["corrected_constraints"][0]["correction_reason"] == "reflection"
+        undo_operation(
+            session, settings, operation_id=op.id, idempotency_key="undo-correction-0001"
+        )
+        session.flush()
+        restored = session.query(CannotLink).one()
+        assert restored.id == conflict.id
+        assert restored.reason == "same_frame"
+        assert cluster.labeled_person_id is None
+        with pytest.raises(ValueError, match="同一画面"):
+            assign_cluster_to_person(
+                session,
+                settings,
+                cluster_id=cluster.id,
+                target_person_id=person.id,
+                idempotency_key="ordinary-retry-0001",
+            )
+        with pytest.raises(ValueError, match="操作已撤销"):
+            assign_cluster_to_person(session, settings, **kwargs)
+
+
+@pytest.mark.parametrize("mode", ["stale", "extra", "duplicate", "reason", "missing"])
+def test_reject_invalid_corrections_without_deleting_constraint(database, settings, mode):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        _, revision = cluster_person_conflicts(session, cluster.id, person.id)
+        changes = correction(conflict)
+        if mode == "stale":
+            cluster.version += 1
+        elif mode == "extra":
+            changes.append({"id": "unrelated", "reason": "reflection"})
+        elif mode == "duplicate":
+            changes *= 2
+        elif mode == "reason":
+            changes[0]["reason"] = "force"
+        else:
+            changes = []
+        with pytest.raises(ValueError):
+            assign_cluster_to_person(
+                session,
+                settings,
+                cluster_id=cluster.id,
+                target_person_id=person.id,
+                idempotency_key="invalid-correction-0001",
+                conflict_corrections=changes,
+                review_revision=revision,
+            )
+        assert session.query(CannotLink).count() == 1
+        assert cluster.labeled_person_id is None
+        assert session.query(ManualOperation).count() == 0
+
+
+def test_post_failure_rolls_back_correction_and_assignment(database, settings, monkeypatch):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        ids = cluster.id, person.id, conflict.id
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("synthetic failure")
+
+    monkeypatch.setattr("doorlock_sentinel.people.admit_prototype", fail)
+    with pytest.raises(RuntimeError), database.session() as session:
+        _, revision = cluster_person_conflicts(session, ids[0], ids[1])
+        assign_cluster_to_person(
+            session,
+            settings,
+            cluster_id=ids[0],
+            target_person_id=ids[1],
+            idempotency_key="rollback-correction-0001",
+            conflict_corrections=[{"id": ids[2], "reason": "reflection"}],
+            review_revision=revision,
+        )
+    with database.session() as session:
+        assert session.get(CannotLink, ids[2]) is not None
+        assert (
+            session.query(FaceTrack).filter_by(unknown_cluster_id=ids[0], person_id=None).count()
+            == 1
+        )
+        assert session.query(ManualOperation).count() == 0
+
+
+def test_correction_preserves_unrelated_constraint(database, settings):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        other = _cluster_with_tracks(session, settings, count=2, start_index=950)
+        tracks = session.query(FaceTrack).filter_by(unknown_cluster_id=other.id).all()
+        left, right = sorted(track.id for track in tracks)
+        untouched = CannotLink(left_track_id=left, right_track_id=right, reason="same_frame")
+        session.add(untouched)
+        session.flush()
+        _, revision = cluster_person_conflicts(session, cluster.id, person.id)
+        assign_cluster_to_person(
+            session,
+            settings,
+            cluster_id=cluster.id,
+            target_person_id=person.id,
+            idempotency_key="unrelated-correction-0001",
+            conflict_corrections=correction(conflict),
+            review_revision=revision,
+        )
+        assert session.get(CannotLink, untouched.id) is untouched
+
+
+def test_target_change_invalidates_review(database, settings):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        _, revision = cluster_person_conflicts(session, cluster.id, person.id)
+        person.display_name = "修改后的合成人物"
+        with pytest.raises(ValueError, match="冲突记录已变化"):
+            assign_cluster_to_person(
+                session,
+                settings,
+                cluster_id=cluster.id,
+                target_person_id=person.id,
+                idempotency_key="renamed-target-0001",
+                conflict_corrections=correction(conflict),
+                review_revision=revision,
+            )
+        assert session.get(CannotLink, conflict.id) is conflict
+
+
+def test_review_authentication_csrf_and_real_api_request(database, settings):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        cid, pid, conflict_id = cluster.id, person.id, conflict.id
+    with TestClient(create_app(settings), base_url="http://testserver") as client:
+        url = f"/api/clusters/{cid}/person-conflicts?target_person_id={pid}"
+        assert client.get(url).status_code == 401
+        csrf = client.post(
+            "/api/session/login", json={"password": "correct horse battery staple"}
+        ).json()["csrf_token"]
+        review = client.get(url)
+        assert review.status_code == 200
+        assert review.json()["items"][0]["id"] == conflict_id
+        body = {
+            "target_person_id": pid,
+            "idempotency_key": "api-correction-0001",
+            "conflict_corrections": [{"id": conflict_id, "reason": "reflection"}],
+            "review_revision": review.json()["review_revision"],
+        }
+        assert client.post(f"/api/clusters/{cid}/assign-person", json=body).status_code == 403
+        accepted = client.post(
+            f"/api/clusters/{cid}/assign-person",
+            json=body,
+            headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"},
+        )
+        assert accepted.status_code == 200
+        assert accepted.json()["result"]["corrected_conflict_count"] == 1
