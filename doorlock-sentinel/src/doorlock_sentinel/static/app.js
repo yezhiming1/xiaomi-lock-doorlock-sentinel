@@ -7,6 +7,8 @@ const state = {
   selectedClusterTracks: {},
   people: [],
   clusters: [],
+  pendingOpen: false,
+  lastMergeTarget: "",
   modalHandler: null,
   viewedPerson: null,
   viewerKind: "face",
@@ -94,6 +96,8 @@ async function api(path, options = {}) {
 function showLogin() {
   if ($("#person-viewer").open) $("#person-viewer").close();
   state.csrf = "";
+  state.pendingOpen = false;
+  state.lastMergeTarget = "";
   $("#shell").hidden = true;
   $("#login").hidden = false;
   setTimeout(() => $("#password").focus(), 0);
@@ -262,7 +266,7 @@ function renderPeopleContent() {
     ? `<div class="category-grid">${peopleGroups(state.people).map((group) => `<details class="person-category" data-category="${group.key}"><summary><span class="category-icon" aria-hidden="true">${group.label.slice(0,1)}</span><span class="category-copy"><strong>${group.label}</strong><small>${group.people.length} 人 · 展开查看</small></span></summary>${group.people.length ? `<div class="people-list" role="list">${group.people.map(personCard).join("")}</div>` : '<div class="empty"><strong>这个类别还没有人物</strong><p>核对人物时可选择此类别。</p></div>'}</details>`).join("")}</div>`
     : '<div class="empty"><strong>还没有已确认人物</strong><p>确认待核对的人物簇后，清晰代表样本会在这里持续积累。</p><button class="button quiet" data-action="scroll-to-clusters">查看待确认人物</button></div>';
   const clustersHtml = state.clusters.length
-    ? `<details class="pending-disclosure"><summary><span class="pending-disclosure-title">待确认</span><span class="pending-disclosure-count">${state.clusters.length} 组</span><span class="pending-disclosure-hint">展开查看样本、录像和核对操作</span></summary><div class="pending-clusters" role="list">${state.clusters.map(clusterCard).join("")}</div></details>`
+    ? `<details class="pending-disclosure"${state.pendingOpen ? " open" : ""}><summary><span class="pending-disclosure-title">待确认</span><span class="pending-disclosure-count">${state.clusters.length} 组</span><span class="pending-disclosure-hint">展开查看样本、录像和核对操作</span></summary><div class="pending-clusters" role="list">${state.clusters.map(clusterCard).join("")}</div></details>`
     : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p><a class="button quiet" href="#operations">查看运行状态</a></div>';
   content.innerHTML = `<section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">等待您的确认</h2><p>先核对样本和对应录像；不确定时保持未知。</p></div></div>${clustersHtml}</section><section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>每个类别一个入口，展开查看人物与原有操作。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section>`;
 }
@@ -328,6 +332,8 @@ async function renderSettings() {
 }
 
 async function loadRoute() {
+  const pending = state.route === "people" && $(".pending-disclosure");
+  if (pending && $("#login").hidden) state.pendingOpen = pending.open;
   const route = location.hash.replace(/^#/, "") || "events";
   state.route = routeCopy[route] ? route : "events";
   setHeader(state.route);
@@ -397,11 +403,20 @@ function renamePerson(personId) {
   });
 }
 
+function restoreMergeTarget(prefix = "") {
+  const select = $("#modal-target");
+  const previous = [...select.options].find((option) => prefix + option.value === state.lastMergeTarget);
+  if (previous) select.value = previous.value;
+}
+
 function mergePerson(sourceId) {
   const targets = state.people.filter((item) => item.id !== sourceId);
   openModal("合并人物", `<p>源人物的录像与代表样本会并入目标人物；同一录像中同时出现过的两人禁止合并。</p><div class="field"><label for="modal-target">目标人物</label><select id="modal-target">${targets.map((item) => `<option value="${esc(item.id)}">${esc(item.display_name)}</option>`).join("")}</select></div>`, "确认合并", async () => {
-    await mutate("/api/people/merge", "POST", { source_person_id: sourceId, target_person_id: $("#modal-target").value, idempotency_key: idempotency() }, "人物已合并，可在运行记录中撤销");
+    const targetId = $("#modal-target").value;
+    await mutate("/api/people/merge", "POST", { source_person_id: sourceId, target_person_id: targetId, idempotency_key: idempotency() }, "人物已合并，可在运行记录中撤销");
+    if (state.csrf) state.lastMergeTarget = `person:${targetId}`;
   });
+  restoreMergeTarget("person:");
 }
 
 function mergeCluster(sourceId) {
@@ -412,10 +427,13 @@ function mergeCluster(sourceId) {
     const [targetType, targetId] = $("#modal-target").value.split(":", 2);
     if (targetType === "person") {
       await mutate(`/api/clusters/${sourceId}/assign-person`, "POST", { target_person_id: targetId, idempotency_key: idempotency() }, "待确认人物已并入已确认人物，可在运行记录中撤销");
+      if (state.csrf) state.lastMergeTarget = `person:${targetId}`;
       return;
     }
     await mutate("/api/clusters/merge", "POST", { source_cluster_id: sourceId, target_cluster_id: targetId, idempotency_key: idempotency() }, "待确认人物已合并，可在运行记录中撤销");
+    if (state.csrf) state.lastMergeTarget = `cluster:${targetId}`;
   });
+  restoreMergeTarget();
 }
 
 function splitCluster(clusterId) {
