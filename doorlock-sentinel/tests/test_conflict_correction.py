@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from test_people import _cluster_with_tracks
 
 from doorlock_sentinel.api import create_app
-from doorlock_sentinel.models import CannotLink, FaceTrack, ManualOperation, Person
+from doorlock_sentinel.models import CannotLink, FaceTrack, ManualOperation, Person, VideoIngest
 from doorlock_sentinel.people import (
     assign_cluster_to_person,
     cluster_person_conflicts,
@@ -340,3 +340,33 @@ def test_concurrent_people_merge_cannot_leave_correction_on_merged_person(
         assert session.query(FaceTrack).filter_by(person_id=pid).count() == 0
         assert session.get(CannotLink, conflict_id) is not None
         assert session.get(type(cluster), cid).labeled_person_id is None
+
+
+def test_ingest_retry_keeps_its_existing_independent_transaction(database, settings):
+    with database.session() as session:
+        ingest = VideoIngest(
+            fingerprint="synthetic-retry",
+            source_path="/synthetic/missing.mp4",
+            original_name="synthetic.mp4",
+            size_bytes=1,
+            mtime_ns=1,
+            state="dead",
+        )
+        session.add(ingest)
+        session.flush()
+        ingest_id = ingest.id
+    client = TestClient(create_app(settings), base_url="http://testserver")
+    try:
+        csrf = client.post(
+            "/api/session/login", json={"password": "correct horse battery staple"}
+        ).json()["csrf_token"]
+        response = client.post(
+            f"/api/ingest/{ingest_id}/retry",
+            headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"},
+        )
+        assert response.status_code == 200
+        with database.session() as session:
+            row = session.get(VideoIngest, ingest_id)
+            assert row.state == "retry" and row.retry_requested
+    finally:
+        client.close()

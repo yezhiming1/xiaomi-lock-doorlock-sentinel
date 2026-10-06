@@ -53,6 +53,15 @@ def serialized_authenticated(request: Request):
 
 def writable(
     request: Request,
+    context: Annotated[AuthContext, Depends(authenticated)],
+    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> AuthContext:
+    context.security.require_csrf(context.web_session, request, csrf_token)
+    return context
+
+
+def people_writable(
+    request: Request,
     context: Annotated[AuthContext, Depends(serialized_authenticated)],
     csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
 ) -> AuthContext:

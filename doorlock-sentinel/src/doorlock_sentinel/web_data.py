@@ -42,7 +42,7 @@ from .people import (
     split_cluster,
     undo_operation,
 )
-from .web_common import AuthContext, authenticated, writable
+from .web_common import AuthContext, authenticated, people_writable, writable
 
 router = APIRouter(prefix="/api", tags=["console"])
 
@@ -598,7 +598,7 @@ def _mutate(
 def cluster_label(
     cluster_id: str,
     body: LabelClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -653,7 +653,7 @@ def cluster_conflict_review(
 def cluster_assign_person(
     cluster_id: str,
     body: AssignClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -676,7 +676,7 @@ def cluster_assign_person(
 def person_rename(
     person_id: str,
     body: RenamePersonRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -696,7 +696,7 @@ def person_rename(
 @router.post("/people/merge")
 def people_merge(
     body: MergePeopleRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -716,7 +716,7 @@ def people_merge(
 @router.post("/clusters/merge")
 def clusters_merge(
     body: MergeClustersRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -737,7 +737,7 @@ def clusters_merge(
 def cluster_split(
     cluster_id: str,
     body: SplitClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -758,7 +758,7 @@ def cluster_split(
 def cluster_false_positive(
     cluster_id: str,
     body: IdempotentRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -777,7 +777,7 @@ def cluster_false_positive(
 def operation_undo(
     operation_id: str,
     body: IdempotentRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
