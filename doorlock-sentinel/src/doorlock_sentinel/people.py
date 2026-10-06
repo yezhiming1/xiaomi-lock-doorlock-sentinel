@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import delete, or_, select
@@ -258,6 +261,74 @@ def label_cluster(
     return result
 
 
+def cluster_person_conflicts(session: Session, cluster_id: str, target_person_id: str):
+    cluster = session.get(UnknownCluster, cluster_id)
+    person = session.get(Person, target_person_id)
+    if not cluster or cluster.status not in {"candidate", "review_ready"}:
+        raise ValueError("未知人物簇不存在或不可合并")
+    if not person or person.status in {"merged", "deleted"}:
+        raise ValueError("目标人物不存在或不可合并")
+    source_ids = {track.id for _member, track in _cluster_members(session, cluster.id)}
+    target_ids = set(session.scalars(select(FaceTrack.id).where(FaceTrack.person_id == person.id)))
+    rows = list(
+        session.scalars(
+            select(CannotLink)
+            .where(
+                or_(
+                    CannotLink.left_track_id.in_(source_ids)
+                    & CannotLink.right_track_id.in_(target_ids),
+                    CannotLink.left_track_id.in_(target_ids)
+                    & CannotLink.right_track_id.in_(source_ids),
+                )
+            )
+            .order_by(CannotLink.id)
+        )
+    )
+    identity = [
+        cluster.id,
+        cluster.version,
+        person.id,
+        person.status,
+        person.display_name,
+        person.relationship,
+        sorted(source_ids),
+        sorted(target_ids),
+        [[row.id, row.left_track_id, row.right_track_id, row.reason] for row in rows],
+    ]
+    revision = hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+    return rows, revision
+
+
+def _person_learning_revision(session: Session, person: Person) -> str:
+    identity = [
+        person.status,
+        sorted(
+            [row.id, row.decision, row.decision_reason, row.representative]
+            for row in session.scalars(select(FaceTrack).where(FaceTrack.person_id == person.id))
+        ),
+        sorted(
+            [row.id, row.event_id, row.source_track_id, row.similarity]
+            for row in session.scalars(
+                select(PersonObservation).where(PersonObservation.person_id == person.id)
+            )
+        ),
+        sorted(
+            [
+                row.id,
+                row.source_track_id,
+                row.model_id,
+                row.quality_score,
+                row.search_enabled,
+                hashlib.sha256(row.embedding).hexdigest(),
+            ]
+            for row in session.scalars(
+                select(FacePrototype).where(FacePrototype.person_id == person.id)
+            )
+        ),
+    ]
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+
+
 def assign_cluster_to_person(
     session: Session,
     settings: Settings,
@@ -265,10 +336,38 @@ def assign_cluster_to_person(
     cluster_id: str,
     target_person_id: str,
     idempotency_key: str,
+    conflict_corrections: list[dict[str, str]] | None = None,
+    review_revision: str | None = None,
 ) -> dict[str, Any]:
-    replay = _existing_result(session, idempotency_key)
-    if replay is not None:
-        return replay
+    corrections = conflict_corrections or []
+    request_identity = hashlib.sha256(
+        json.dumps(
+            [
+                cluster_id,
+                target_person_id,
+                sorted((x["id"], x["reason"]) for x in corrections),
+                review_revision,
+            ],
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
+    previous = session.scalar(
+        select(ManualOperation).where(ManualOperation.idempotency_key == idempotency_key)
+    )
+    if previous:
+        if (
+            previous.operation != "assign_cluster_to_person"
+            or previous.undone_at is not None
+            or previous.after_json.get("cluster_id") != cluster_id
+            or previous.after_json.get("target_person_id") != target_person_id
+            or previous.before_json.get(
+                "assignment_request",
+                request_identity if not corrections and not review_revision else None,
+            )
+            != request_identity
+        ):
+            raise ValueError("请求已变化或操作已撤销，请重新核对")
+        return previous.after_json
     cluster = session.get(UnknownCluster, cluster_id)
     if not cluster or cluster.status not in {"candidate", "review_ready"}:
         raise ValueError("未知人物簇不存在或不可合并")
@@ -279,14 +378,41 @@ def assign_cluster_to_person(
     if not members:
         raise ValueError("未知人物簇没有可用样本")
 
-    source_track_ids = {track.id for _member, track in members}
-    target_track_ids = set(
-        session.scalars(select(FaceTrack.id).where(FaceTrack.person_id == person.id))
-    )
-    if _has_cannot_link(session, source_track_ids, target_track_ids):
+    conflicts, current_revision = cluster_person_conflicts(session, cluster_id, target_person_id)
+    corrected_rows = []
+    if corrections:
+        ids = [item["id"] for item in corrections]
+        if (
+            len(ids) != len(set(ids))
+            or set(ids) != {row.id for row in conflicts}
+            or not conflicts
+            or review_revision != current_revision
+            or any(
+                item["reason"] not in {"reflection", "duplicate_detection"} for item in corrections
+            )
+            or any(row.reason != "same_frame" for row in conflicts)
+        ):
+            raise ValueError("冲突记录已变化或未逐项核对，请重新打开核查")
+        reasons = {item["id"]: item["reason"] for item in corrections}
+        corrected_rows = [
+            {
+                "id": row.id,
+                "left_track_id": row.left_track_id,
+                "right_track_id": row.right_track_id,
+                "reason": row.reason,
+                "created_at": row.created_at.isoformat(),
+                "correction_reason": reasons[row.id],
+            }
+            for row in conflicts
+        ]
+    elif conflicts:
         raise ValueError("该人物与人物簇包含同一画面中的不同人物，不能合并")
+    elif review_revision:
+        raise ValueError("纠错请求没有有效冲突，请重新核对")
 
     before = {
+        "assignment_request": request_identity,
+        "corrected_constraints": corrected_rows,
         "cluster_status": cluster.status,
         "cluster_version": cluster.version,
         "cluster_labeled_person_id": cluster.labeled_person_id,
@@ -302,6 +428,13 @@ def assign_cluster_to_person(
             for _member, track in members
         ],
     }
+    if conflicts:
+        removed = session.execute(
+            delete(CannotLink).where(CannotLink.id.in_([row.id for row in conflicts]))
+        )
+        if removed.rowcount != len(conflicts):
+            raise ValueError("冲突记录已变化，请重新打开核查")
+    session.flush()
     matcher = IdentityMatcher(settings)
     existing_prototype_ids = set(
         session.scalars(select(FacePrototype.id).where(FacePrototype.person_id == person.id))
@@ -350,12 +483,16 @@ def assign_cluster_to_person(
     before["created_observation_ids"] = sorted(created_observation_ids)
     before["created_prototype_ids"] = sorted(created_prototype_ids)
     before["created_model_ids"] = sorted(created_model_ids)
+    session.flush()
     result = {
         "status": "assigned",
         "cluster_id": cluster.id,
         "target_person_id": person.id,
         "display_name": person.display_name,
         "prototype_count": len(created_prototype_ids),
+        "corrected_conflict_count": len(corrected_rows),
+        "correction_reasons": sorted({item["correction_reason"] for item in corrected_rows}),
+        "learning_revision": _person_learning_revision(session, person) if corrected_rows else None,
     }
     _record(
         session,
@@ -720,6 +857,35 @@ def undo_operation(
             or any(track.person_id != person.id for track in tracks.values())
         ):
             raise ValueError("人物合并结果已经发生后续变化，不能安全撤销")
+        corrected = before.get("corrected_constraints", [])
+        if corrected:
+            if after.get("learning_revision") != _person_learning_revision(session, person):
+                raise ValueError("人物已有后续学习或变化，不能安全撤销纠错")
+            if cluster.version != before["cluster_version"] + 1 or {
+                track.id for _member, track in _cluster_members(session, cluster.id)
+            } != set(tracks):
+                raise ValueError("纠错结果已经发生后续变化，不能安全撤销")
+            for item in corrected:
+                if session.scalar(
+                    select(CannotLink.id).where(
+                        or_(
+                            CannotLink.id == item["id"],
+                            (CannotLink.left_track_id == item["left_track_id"])
+                            & (CannotLink.right_track_id == item["right_track_id"]),
+                        )
+                    )
+                ):
+                    raise ValueError("原冲突约束已经变化，不能安全撤销")
+            for item in corrected:
+                session.add(
+                    CannotLink(
+                        id=item["id"],
+                        left_track_id=item["left_track_id"],
+                        right_track_id=item["right_track_id"],
+                        reason=item["reason"],
+                        created_at=datetime.fromisoformat(item["created_at"]),
+                    )
+                )
         created_observation_ids = before["created_observation_ids"]
         if created_observation_ids:
             session.execute(

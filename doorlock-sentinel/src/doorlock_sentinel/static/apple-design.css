@@ -122,6 +122,15 @@ button, a, summary, input, select { scroll-margin: 90px; }
 @media (max-width:380px) {
   .category-grid { grid-template-columns: 1fr; }
 }
+.modal:has(.conflict-review) { width: min(960px, calc(100vw - 32px)); }
+.conflict-item { border-top: 1px solid var(--rule); margin-top: 24px; padding-top: 20px; }
+.conflict-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.conflict-evidence figure { margin: 0; min-width: 0; }
+.conflict-evidence figcaption { margin-bottom: 8px; }
+.conflict-evidence img, .conflict-item video { width: 100%; max-height: 320px; object-fit: contain; background: var(--paper); border-radius: 11px; }
+.conflict-confirm { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
+.conflict-confirm input { flex: 0 0 24px; min-height: 44px; }
+@media (max-width:680px) { .conflict-evidence { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion:reduce) {
   .button, .person-category summary::after, .pending-disclosure summary::after { transition: none; }
   .button:active { transform: none; }

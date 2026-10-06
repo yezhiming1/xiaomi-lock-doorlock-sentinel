@@ -5,7 +5,7 @@ import shutil
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -33,6 +33,7 @@ from .models import (
 )
 from .people import (
     assign_cluster_to_person,
+    cluster_person_conflicts,
     label_cluster,
     mark_cluster_false_positive,
     merge_clusters,
@@ -41,7 +42,7 @@ from .people import (
     split_cluster,
     undo_operation,
 )
-from .web_common import AuthContext, authenticated, writable
+from .web_common import AuthContext, authenticated, people_writable, writable
 
 router = APIRouter(prefix="/api", tags=["console"])
 
@@ -69,8 +70,15 @@ class MergeClustersRequest(IdempotentRequest):
     target_cluster_id: str = Field(min_length=1, max_length=64)
 
 
+class ConflictCorrection(BaseModel):
+    id: str = Field(min_length=1, max_length=64)
+    reason: Literal["reflection", "duplicate_detection"]
+
+
 class AssignClusterRequest(IdempotentRequest):
     target_person_id: str = Field(min_length=1, max_length=64)
+    conflict_corrections: list[ConflictCorrection] = Field(default_factory=list, max_length=100)
+    review_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class SplitClusterRequest(IdempotentRequest):
@@ -130,7 +138,16 @@ def _operation_subject_label(session: Any, row: ManualOperation) -> str:
             after.get("target_person_id"),
             after.get("display_name"),
         )
-        return f"{_cluster_label(after.get('cluster_id'))} → {person}"
+        reasons = {"reflection": "倒影", "duplicate_detection": "重复检测"}
+        corrected = "、".join(
+            reasons.get(item, "误判") for item in after.get("correction_reasons", [])
+        )
+        suffix = (
+            f"（纠错：{corrected}，{after.get('corrected_conflict_count', 0)} 条）"
+            if corrected
+            else ""
+        )
+        return f"{_cluster_label(after.get('cluster_id'))} → {person}{suffix}"
     if row.operation == "merge_people":
         source = _person_label(session, after.get("source_person_id"))
         target = _person_label(session, after.get("target_person_id"))
@@ -581,7 +598,7 @@ def _mutate(
 def cluster_label(
     cluster_id: str,
     body: LabelClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -599,11 +616,44 @@ def cluster_label(
     )
 
 
+@router.get("/clusters/{cluster_id}/person-conflicts")
+def cluster_conflict_review(
+    cluster_id: str,
+    target_person_id: str,
+    context: Annotated[AuthContext, Depends(authenticated)],
+) -> dict[str, Any]:
+    session = context.database_session
+    try:
+        rows, revision = cluster_person_conflicts(session, cluster_id, target_person_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    items = []
+    for row in rows:
+        left = session.get(FaceTrack, row.left_track_id)
+        right = session.get(FaceTrack, row.right_track_id)
+        event = session.get(Event, left.event_id)
+        items.append(
+            {
+                "id": row.id,
+                "reason": row.reason,
+                "left": _track_item(context, left),
+                "right": _track_item(context, right),
+                "video_url": _artifact_url(event.source_artifact_id) if event else None,
+            }
+        )
+    person = session.get(Person, target_person_id)
+    return {
+        "items": items,
+        "review_revision": revision,
+        "target_person": {"id": person.id, "display_name": person.display_name},
+    }
+
+
 @router.post("/clusters/{cluster_id}/assign-person")
 def cluster_assign_person(
     cluster_id: str,
     body: AssignClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -616,6 +666,8 @@ def cluster_assign_person(
             cluster_id=cluster_id,
             target_person_id=body.target_person_id,
             idempotency_key=body.idempotency_key,
+            conflict_corrections=[item.model_dump() for item in body.conflict_corrections],
+            review_revision=body.review_revision,
         ),
     )
 
@@ -624,7 +676,7 @@ def cluster_assign_person(
 def person_rename(
     person_id: str,
     body: RenamePersonRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -644,7 +696,7 @@ def person_rename(
 @router.post("/people/merge")
 def people_merge(
     body: MergePeopleRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -664,7 +716,7 @@ def people_merge(
 @router.post("/clusters/merge")
 def clusters_merge(
     body: MergeClustersRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -685,7 +737,7 @@ def clusters_merge(
 def cluster_split(
     cluster_id: str,
     body: SplitClusterRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -706,7 +758,7 @@ def cluster_split(
 def cluster_false_positive(
     cluster_id: str,
     body: IdempotentRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,
@@ -725,7 +777,7 @@ def cluster_false_positive(
 def operation_undo(
     operation_id: str,
     body: IdempotentRequest,
-    context: Annotated[AuthContext, Depends(writable)],
+    context: Annotated[AuthContext, Depends(people_writable)],
 ) -> dict[str, Any]:
     return _mutate(
         context,

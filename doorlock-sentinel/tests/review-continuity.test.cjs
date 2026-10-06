@@ -6,11 +6,11 @@ const source = fs.readFileSync(require("node:path").join(__dirname, "../src/door
 function setup() {
   const nodes = new Map();
   const node = () => ({innerHTML:"", hidden:true, open:false, options:[], value:"", textContent:"", setAttribute(){}, focus(){}, close(){this.open=false;}, showModal(){this.open=true;}, querySelector(){return null;}});
-  const scope = {document:{querySelector(s){if(s === "#modal-relationship" || s === "#modal-name-hint") return null; if(!nodes.has(s)) nodes.set(s,node()); return nodes.get(s);}}, location:{hash:"#people"}, setTimeout(){}, crypto:{randomUUID:()=>"synthetic-key"}, DoorlockTime:{dayLabel:()=>"",formatDate:()=>""}};
+  const scope = {document:{querySelectorAll(){return [];},querySelector(s){if(s === "#modal-relationship" || s === "#modal-name-hint") return null; if(!nodes.has(s)) nodes.set(s,node()); return nodes.get(s);}}, location:{hash:"#people"}, setTimeout(){}, crypto:{randomUUID:()=>"synthetic-key"}, DoorlockTime:{dayLabel:()=>"",formatDate:()=>""}};
   vm.createContext(scope);
   vm.runInContext(source.slice(0,source.indexOf('document.addEventListener("click"')),scope);
   const run = code => vm.runInContext(code,scope);
-  run('state.csrf="synthetic";state.route="people";state.people=[{id:"cleaner",display_name:"保洁1"},{id:"neighbor",display_name:"邻居1"}];state.clusters=[{id:"c1",tracks:[]},{id:"c2",tracks:[]}];');
+  run('api=async()=>({items:[]});state.csrf="synthetic";state.route="people";state.people=[{id:"cleaner",display_name:"保洁1"},{id:"neighbor",display_name:"邻居1"}];state.clusters=[{id:"c1",tracks:[]},{id:"c2",tracks:[]}];');
   return {nodes,run};
 }
 test("manual open and closed choices survive refresh and leaving people", async () => {
@@ -77,4 +77,32 @@ test("logout or expiry resets preferences and expiry during refresh cannot resto
   run('state.csrf="synthetic";mutate=async()=>showLogin();mergeCluster("c1")');
   await run('state.modalHandler()');
   assert.equal(run('state.lastMergeTarget'),"");
+});
+
+test("correction requires every explicit reason and checkbox and binds exact reviewed target", async () => {
+  const {run,nodes}=setup();
+  run('let captured=null;mutate=async(p,m,b)=>{captured=b};reviewMergeConflicts("c1","neighbor",{items:[{id:"conflict-1",left:{},right:{}}],review_revision:"review-hash"})');
+  assert.ok(nodes.get("#modal-body").innerHTML.includes("可能不是触发冲突的同一帧"));
+  assert.ok(!nodes.get("#modal-body").innerHTML.includes("checked"));
+  await assert.rejects(run('state.modalHandler()'),/请先选择/);
+  assert.equal(run('captured'),null);
+  run('$("#conflict-reason-0").value="reflection";');
+  await assert.rejects(run('state.modalHandler()'),/确认已核对/);
+  run('$("#conflict-confirm-0").checked=true;');
+  await run('state.modalHandler()');
+  assert.equal(run('captured.target_person_id'),"neighbor");
+  assert.equal(run('captured.conflict_corrections[0].id'),"conflict-1");
+  assert.equal(run('captured.review_revision'),"review-hash");
+});
+
+test("cancel while conflict lookup is pending cannot reopen dialog or submit", async () => {
+  const {run}=setup();
+  const select=run('$("#modal-target")');
+  select.options=[{value:"person:neighbor"}];select.value="person:neighbor";
+  run('let resolveReview;let submitted=false;api=()=>new Promise(r=>resolveReview=r);mutate=async()=>{submitted=true};mergeCluster("c1")');
+  const work=run('state.modalHandler()');
+  run('modal.close();resolveReview({items:[{id:"conflict",left:{},right:{}}]})');
+  await work;
+  assert.equal(run('modal.open'),false);
+  assert.equal(run('submitted'),false);
 });
