@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 from test_people import _cluster_with_tracks
 
 from doorlock_sentinel.api import create_app
-from doorlock_sentinel.models import CannotLink, FaceTrack, ManualOperation, Person, VideoIngest
+from doorlock_sentinel.models import (
+    CannotLink,
+    FaceTrack,
+    ManualOperation,
+    Person,
+    PersonObservation,
+    VideoIngest,
+)
 from doorlock_sentinel.people import (
     assign_cluster_to_person,
     cluster_person_conflicts,
@@ -370,3 +377,47 @@ def test_ingest_retry_keeps_its_existing_independent_transaction(database, setti
             assert row.state == "retry" and row.retry_requested
     finally:
         client.close()
+
+
+@pytest.mark.parametrize("later_change", ["status", "observation"])
+def test_undo_correction_refuses_to_overwrite_later_learning(database, settings, later_change):
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        cid, pid, conflict_id = cluster.id, person.id, conflict.id
+        _, revision = cluster_person_conflicts(session, cid, pid)
+        assign_cluster_to_person(
+            session,
+            settings,
+            cluster_id=cid,
+            target_person_id=pid,
+            idempotency_key="later-learning-correct",
+            conflict_corrections=correction(conflict),
+            review_revision=revision,
+        )
+        op_id = session.query(ManualOperation).one().id
+    with database.session() as session:
+        person = session.get(Person, pid)
+        if later_change == "status":
+            person.status = "trusted"
+        else:
+            other = _cluster_with_tracks(session, settings, count=1, start_index=980)
+            track = session.query(FaceTrack).filter_by(unknown_cluster_id=other.id).one()
+            session.add(
+                PersonObservation(
+                    person_id=pid,
+                    event_id=track.event_id,
+                    event_day="2026-01-02",
+                    source_track_id=track.id,
+                    similarity=0.99,
+                )
+            )
+    with pytest.raises(ValueError, match="后续学习"), database.session() as session:
+        undo_operation(session, settings, operation_id=op_id, idempotency_key="later-learning-undo")
+    with database.session() as session:
+        assert session.get(type(cluster), cid).labeled_person_id == pid
+        assert session.get(CannotLink, conflict_id) is None
+        assert session.get(ManualOperation, op_id).undone_at is None
+        if later_change == "status":
+            assert session.get(Person, pid).status == "trusted"
+        else:
+            assert session.query(PersonObservation).filter_by(person_id=pid).count() == 2

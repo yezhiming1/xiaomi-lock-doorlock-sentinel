@@ -299,6 +299,36 @@ def cluster_person_conflicts(session: Session, cluster_id: str, target_person_id
     return rows, revision
 
 
+def _person_learning_revision(session: Session, person: Person) -> str:
+    identity = [
+        person.status,
+        sorted(
+            [row.id, row.decision, row.decision_reason, row.representative]
+            for row in session.scalars(select(FaceTrack).where(FaceTrack.person_id == person.id))
+        ),
+        sorted(
+            [row.id, row.event_id, row.source_track_id, row.similarity]
+            for row in session.scalars(
+                select(PersonObservation).where(PersonObservation.person_id == person.id)
+            )
+        ),
+        sorted(
+            [
+                row.id,
+                row.source_track_id,
+                row.model_id,
+                row.quality_score,
+                row.search_enabled,
+                hashlib.sha256(row.embedding).hexdigest(),
+            ]
+            for row in session.scalars(
+                select(FacePrototype).where(FacePrototype.person_id == person.id)
+            )
+        ),
+    ]
+    return hashlib.sha256(json.dumps(identity, separators=(",", ":")).encode()).hexdigest()
+
+
 def assign_cluster_to_person(
     session: Session,
     settings: Settings,
@@ -453,6 +483,7 @@ def assign_cluster_to_person(
     before["created_observation_ids"] = sorted(created_observation_ids)
     before["created_prototype_ids"] = sorted(created_prototype_ids)
     before["created_model_ids"] = sorted(created_model_ids)
+    session.flush()
     result = {
         "status": "assigned",
         "cluster_id": cluster.id,
@@ -461,6 +492,7 @@ def assign_cluster_to_person(
         "prototype_count": len(created_prototype_ids),
         "corrected_conflict_count": len(corrected_rows),
         "correction_reasons": sorted({item["correction_reason"] for item in corrected_rows}),
+        "learning_revision": _person_learning_revision(session, person) if corrected_rows else None,
     }
     _record(
         session,
@@ -827,6 +859,8 @@ def undo_operation(
             raise ValueError("人物合并结果已经发生后续变化，不能安全撤销")
         corrected = before.get("corrected_constraints", [])
         if corrected:
+            if after.get("learning_revision") != _person_learning_revision(session, person):
+                raise ValueError("人物已有后续学习或变化，不能安全撤销纠错")
             if cluster.version != before["cluster_version"] + 1 or {
                 track.id for _member, track in _cluster_members(session, cluster.id)
             } != set(tracks):
