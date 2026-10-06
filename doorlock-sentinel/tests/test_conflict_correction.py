@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event as ThreadEvent
+
 import pytest
 from fastapi.testclient import TestClient
 from test_people import _cluster_with_tracks
@@ -206,3 +209,60 @@ def test_review_authentication_csrf_and_real_api_request(database, settings):
         )
         assert accepted.status_code == 200
         assert accepted.json()["result"]["corrected_conflict_count"] == 1
+
+
+def test_concurrent_api_corrections_reject_second_stale_request(database, settings, monkeypatch):
+    import doorlock_sentinel.people as people
+
+    with database.session() as session:
+        cluster, person, conflict = fixture(session, settings)
+        cid, pid, conflict_id = cluster.id, person.id, conflict.id
+    original = people.cluster_person_conflicts
+    first_read, release_first, second_started = ThreadEvent(), ThreadEvent(), ThreadEvent()
+    call_count = 0
+
+    def controlled_read(*args, **kwargs):
+        nonlocal call_count
+        result = original(*args, **kwargs)
+        call_count += 1
+        if call_count == 1:
+            first_read.set()
+            assert release_first.wait(10)
+        return result
+
+    with TestClient(create_app(settings), base_url="http://testserver") as client:
+        csrf = client.post(
+            "/api/session/login", json={"password": "correct horse battery staple"}
+        ).json()["csrf_token"]
+        review = client.get(f"/api/clusters/{cid}/person-conflicts?target_person_id={pid}").json()
+        monkeypatch.setattr(people, "cluster_person_conflicts", controlled_read)
+        body = {
+            "target_person_id": pid,
+            "conflict_corrections": [{"id": conflict_id, "reason": "reflection"}],
+            "review_revision": review["review_revision"],
+        }
+
+        def submit(key):
+            if key.endswith("second"):
+                second_started.set()
+            return client.post(
+                f"/api/clusters/{cid}/assign-person",
+                json={**body, "idempotency_key": key},
+                headers={"X-CSRF-Token": csrf, "Origin": "http://testserver"},
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            first = executor.submit(submit, "concurrent-first")
+            assert first_read.wait(10)
+            second = executor.submit(submit, "concurrent-second")
+            assert second_started.wait(10)
+            release_first.set()
+            responses = [first.result(timeout=15), second.result(timeout=15)]
+        assert sorted(r.status_code for r in responses) == [200, 409]
+    with database.session() as session:
+        assert (
+            session.query(ManualOperation).filter_by(operation="assign_cluster_to_person").count()
+            == 1
+        )
+        assert session.query(CannotLink).count() == 0
+        assert session.get(type(cluster), cid).version == 2

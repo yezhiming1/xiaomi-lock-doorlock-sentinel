@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException, Request
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from .models import WebSession
@@ -22,10 +23,16 @@ def runtime_from(request: Request) -> Any:
     return request.app.state.runtime
 
 
-def authenticated(request: Request):
+def _authenticated_context(request: Request, *, serialized: bool = False):
     runtime = runtime_from(request)
     database_session = runtime.database.session_factory()
     try:
+        if serialized:
+            # Acquire SQLite's writer reservation before authentication or any
+            # business reads. A waiting request must reread committed state.
+            if database_session.get_bind().dialect.name != "sqlite":
+                raise HTTPException(status_code=503, detail="当前数据库不支持安全纠错事务")
+            database_session.execute(text("BEGIN IMMEDIATE"))
         row = runtime.security.session_from_request(database_session, request)
         yield AuthContext(database_session, row, runtime.security, runtime)
         database_session.commit()
@@ -34,6 +41,23 @@ def authenticated(request: Request):
         raise
     finally:
         database_session.close()
+
+
+def authenticated(request: Request):
+    yield from _authenticated_context(request)
+
+
+def serialized_authenticated(request: Request):
+    yield from _authenticated_context(request, serialized=True)
+
+
+def serialized_writable(
+    request: Request,
+    context: Annotated[AuthContext, Depends(serialized_authenticated)],
+    csrf_token: Annotated[str | None, Header(alias="X-CSRF-Token")] = None,
+) -> AuthContext:
+    context.security.require_csrf(context.web_session, request, csrf_token)
+    return context
 
 
 def writable(

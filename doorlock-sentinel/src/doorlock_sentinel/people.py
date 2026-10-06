@@ -398,8 +398,12 @@ def assign_cluster_to_person(
             for _member, track in members
         ],
     }
-    for row in conflicts:
-        session.delete(row)
+    if conflicts:
+        removed = session.execute(
+            delete(CannotLink).where(CannotLink.id.in_([row.id for row in conflicts]))
+        )
+        if removed.rowcount != len(conflicts):
+            raise ValueError("冲突记录已变化，请重新打开核查")
     session.flush()
     matcher = IdentityMatcher(settings)
     existing_prototype_ids = set(
