@@ -106,3 +106,36 @@ test("cancel while conflict lookup is pending cannot reopen dialog or submit", a
   assert.equal(run('modal.open'),false);
   assert.equal(run('submitted'),false);
 });
+
+test("paged conflicts retain independent decisions and still require every reviewed item", async () => {
+  const {run,nodes}=setup();
+  run('let captured=null;mutate=async(p,m,b)=>{captured=b};reviewMergeConflicts("c1","neighbor",{items:[{id:"first",left:{},right:{}},{id:"second",left:{},right:{}}],review_revision:"revision"})');
+  const pages=[{hidden:false,querySelector(){return {pause(){}};}},{hidden:true,querySelector(){return {pause(){}};}}];
+  run('document.querySelectorAll=()=>[]');
+  // Real navigation only changes hidden state; inputs remain in the same form.
+  const query=run('document');
+  query.querySelectorAll=selector=>selector==='.conflict-item'?pages:[];
+  run('$("#conflict-reason-0").value="reflection";$("#conflict-confirm-0").checked=true;showConflict(1)');
+  assert.deepEqual(pages.map(p=>p.hidden),[true,false]);
+  assert.equal(nodes.get('#conflict-position').textContent,'第 2 / 2 条冲突');
+  assert.equal(nodes.get('[data-action="conflict-next"]').disabled,true);
+  await assert.rejects(run('state.modalHandler()'),/冲突 2/);
+  assert.equal(run('captured'),null);
+  run('$("#conflict-reason-1").value="duplicate_detection";$("#conflict-confirm-1").checked=true;showConflict(0)');
+  assert.equal(run('$("#conflict-reason-0").value'),'reflection');
+  assert.equal(run('$("#conflict-confirm-0").checked'),true);
+  await run('state.modalHandler()');
+  assert.deepEqual(JSON.parse(run('JSON.stringify(captured.conflict_corrections)')),[{id:'first',reason:'reflection'},{id:'second',reason:'duplicate_detection'}]);
+});
+
+test("submission locates the first incomplete conflict without sending partial corrections", async () => {
+  const {run,nodes}=setup();
+  run('let sent=false;mutate=async()=>{sent=true};reviewMergeConflicts("c1","neighbor",{items:[{id:"first",left:{},right:{}},{id:"second",left:{},right:{}}],review_revision:"revision"})');
+  const pages=[{hidden:true,querySelector(){return null;}},{hidden:false,querySelector(){return null;}}];
+  run('document').querySelectorAll=selector=>selector==='.conflict-item'?pages:[];
+  run('$("#conflict-reason-1").value="reflection";$("#conflict-confirm-1").checked=true');
+  await assert.rejects(run('state.modalHandler()'),/冲突 1/);
+  assert.equal(run('sent'),false);
+  assert.equal(pages[0].hidden,false);
+  assert.equal(nodes.get('#conflict-position').textContent,'第 1 / 2 条冲突');
+});

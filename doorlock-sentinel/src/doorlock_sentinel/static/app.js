@@ -448,12 +448,16 @@ function mergeCluster(sourceId) {
 
 function reviewMergeConflicts(sourceId, targetId, review) {
   const person = review.target_person || state.people.find(item => item.id === targetId);
-  const sample = (track, label) => `<figure><figcaption>${label} · 代表场景</figcaption>${track.preview_url ? `<img src="${esc(track.preview_url)}" alt="${label}代表场景（不保证是冲突帧）">` : '<p>代表场景不可用，请核对原始录像。</p>'}</figure>`;
-  const items = review.items.map((item, index) => `<section class="conflict-item"><h3>冲突 ${index + 1}</h3><div class="conflict-evidence">${sample(item.left, "样本 A")}${sample(item.right, "样本 B")}</div>${item.video_url ? `<video controls preload="metadata" src="${esc(item.video_url)}" aria-label="冲突 ${index + 1} 的原始录像"></video>` : '<p>原始录像不在本地。证据不足时请取消。</p>'}<div class="field"><label for="conflict-reason-${index}">这条冲突的误判原因</label><select id="conflict-reason-${index}"><option value="">请选择原因</option><option value="reflection">同一个人的倒影</option><option value="duplicate_detection">同一个人被重复检测</option></select></div><label class="conflict-confirm"><input type="checkbox" id="conflict-confirm-${index}"><span>我已核对：这是同一个人，不是同框中的两个人</span></label></section>`).join("");
-  openModal("核查同框冲突", `<div class="conflict-review"><p>准备并入：${esc(person?.display_name || "所选人物")}。只纠正下列约束，不关闭其他同框保护。</p><p class="muted">以下是代表样本，可能不是触发冲突的同一帧。旧记录未保存精确冲突帧位置，请结合原始录像逐项核对；不确定时取消。</p>${items}<p>纠错与合并会一起保存，可在运行记录中撤销。</p></div>`, "纠错并合并", async () => {
+  const sample = (track, label, index, side) => `<figure data-sample="${side}"><figcaption>${label} · 代表场景</figcaption>${track.preview_url ? `<button type="button" class="conflict-image" data-action="conflict-image" aria-label="放大冲突 ${index + 1} ${label}"><img src="${esc(track.preview_url)}" alt="${label}代表场景（不保证是冲突帧）"></button>` : '<p>代表场景不可用，请核对原始录像。</p>'}</figure>`;
+  const items = review.items.map((item, index) => `<section class="conflict-item" data-conflict-index="${index}" ${index ? 'hidden' : ''}><div class="conflict-media"><div class="conflict-tabs" role="group" aria-label="选择冲突 ${index + 1} 的证据"><button class="button quiet" type="button" data-action="conflict-media" data-kind="video" aria-pressed="true">录像</button><button class="button quiet" type="button" data-action="conflict-media" data-kind="a" aria-pressed="false">样本 A</button><button class="button quiet" type="button" data-action="conflict-media" data-kind="b" aria-pressed="false">样本 B</button><button class="button quiet conflict-compare" type="button" data-action="conflict-media" data-kind="compare" aria-pressed="false">并排对照</button></div><div class="conflict-stage"><div class="conflict-video">${item.video_url ? `<video controls preload="none" src="${esc(item.video_url)}" aria-label="冲突 ${index + 1} 的原始录像"></video>` : '<p>原始录像不在本地。证据不足时请取消。</p>'}</div><div class="conflict-evidence" hidden>${sample(item.left, "样本 A", index, "a")}${sample(item.right, "样本 B", index, "b")}</div></div></div><div class="conflict-decision"><div class="field"><label for="conflict-reason-${index}">这条冲突的误判原因</label><select id="conflict-reason-${index}"><option value="">请选择原因</option><option value="reflection">同一个人的倒影</option><option value="duplicate_detection">同一个人被重复检测</option></select></div><label class="conflict-confirm"><input type="checkbox" id="conflict-confirm-${index}"><span>我已核对：这是同一个人，不是同框中的两个人</span></label><p class="muted">代表样本可能不是触发冲突的同一帧。旧记录未保存精确冲突帧位置，请结合原始录像核对；不确定时取消。</p><p class="field-hint">点开样本查看大图；纠错与合并会一起保存，可在运行记录中撤销。</p></div></section>`).join("");
+  openModal("核查同框冲突", `<div class="conflict-review"><p class="conflict-target">准备并入：${esc(person?.display_name || "所选人物")}。只纠正下列约束，不关闭其他同框保护。</p><div class="conflict-navigation"><button class="button quiet" type="button" data-action="conflict-previous" disabled>上一条</button><span id="conflict-position" role="status" aria-live="polite">第 1 / ${review.items.length} 条冲突</span><button class="button quiet" type="button" data-action="conflict-next" ${review.items.length < 2 ? 'disabled' : ''}>下一条</button></div>${items}</div>`, "纠错并合并", async () => {
     const corrections = review.items.map((item, index) => {
       const reason = $(`#conflict-reason-${index}`).value;
-      if (!reason || !$(`#conflict-confirm-${index}`).checked) throw new Error(`请先选择冲突 ${index + 1} 的原因，并确认已核对是同一个人`);
+      if (!reason || !$(`#conflict-confirm-${index}`).checked) {
+        showConflict(index);
+        $(`#conflict-reason-${index}`).focus();
+        throw new Error(`请先选择冲突 ${index + 1} 的原因，并确认已核对是同一个人`);
+      }
       return { id: item.id, reason };
     });
     await mutate(`/api/clusters/${sourceId}/assign-person`, "POST", { target_person_id: targetId, conflict_corrections: corrections, review_revision: review.review_revision, idempotency_key: idempotency() }, "误判已纠正并合并，可在运行记录中撤销");
@@ -462,8 +466,45 @@ function reviewMergeConflicts(sourceId, targetId, review) {
   document.querySelectorAll('.conflict-evidence img').forEach(img => img.addEventListener('error', () => {
     const message = document.createElement('p');
     message.textContent = '图片无法加载，请核对原始录像；证据不足时取消。';
-    img.replaceWith(message);
+    img.closest('button').replaceWith(message);
   }, { once: true }));
+}
+
+function showConflict(index) {
+  const items = [...document.querySelectorAll('.conflict-item')];
+  if (!items.length || index < 0 || index >= items.length) return;
+  items.forEach((item, position) => {
+    item.hidden = position !== index;
+    if (item.hidden) item.querySelector('video')?.pause();
+  });
+  $('#conflict-position').textContent = `第 ${index + 1} / ${items.length} 条冲突`;
+  $('[data-action="conflict-previous"]').disabled = index === 0;
+  $('[data-action="conflict-next"]').disabled = index === items.length - 1;
+}
+
+function selectConflictMedia(item, kind) {
+  item.querySelector('.conflict-video').hidden = kind !== 'video';
+  const evidence = item.querySelector('.conflict-evidence');
+  evidence.hidden = kind === 'video';
+  evidence.classList.toggle('is-comparison', kind === 'compare');
+  item.querySelectorAll('[data-sample]').forEach(sample => { sample.hidden = kind !== 'compare' && sample.dataset.sample !== kind; });
+  item.querySelectorAll('[data-action="conflict-media"]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.kind === kind)));
+  if (kind !== 'video') item.querySelector('video')?.pause();
+}
+
+function viewConflictImage(button) {
+  const image = button.querySelector('img');
+  if (!image) return;
+  const viewer = $('#conflict-viewer');
+  $('#conflict-viewer-title').textContent = button.getAttribute('aria-label');
+  const big = document.createElement('img');
+  big.alt = image.alt;
+  big.onload = () => { $('#conflict-viewer-status').textContent = '场景原图 · 放大不会增加原图细节'; };
+  big.onerror = () => { $('#conflict-viewer-status').textContent = '图片加载失败，请关闭后重试；证据不足时取消。'; };
+  $('#conflict-viewer-media').replaceChildren(big);
+  $('#conflict-viewer-status').textContent = '正在加载图片…';
+  big.src = image.src;
+  viewer.showModal();
 }
 
 function splitCluster(clusterId) {
@@ -547,7 +588,15 @@ document.addEventListener("click", async (event) => {
   const action = target.dataset.action;
   const id = target.dataset.id;
   try {
-    if (action === "view-person") viewPerson(id);
+    if (action === "conflict-previous" || action === "conflict-next") {
+      const current = $('.conflict-item:not([hidden])');
+      if (current) showConflict(Number(current.dataset.conflictIndex) + (action === "conflict-next" ? 1 : -1));
+      $('#modal-error').textContent = '';
+    }
+    else if (action === "conflict-media") selectConflictMedia(target.closest('.conflict-item'), target.dataset.kind);
+    else if (action === "conflict-image") viewConflictImage(target);
+    else if (action === "close-conflict-viewer") $('#conflict-viewer').close();
+    else if (action === "view-person") viewPerson(id);
     else if (action === "close-person-viewer") $("#person-viewer").close();
     else if (action === "person-viewer-face" || action === "person-viewer-scene") {
       state.viewerKind = action === "person-viewer-face" ? "face" : "scene";
@@ -593,6 +642,12 @@ $("#person-viewer").addEventListener("close", () => {
   state.viewerRequest++;
   state.viewedPerson = null;
   $("#person-viewer-media").replaceChildren();
+});
+
+$('#conflict-viewer').addEventListener('close', () => { $('#conflict-viewer-media').replaceChildren(); });
+modal.addEventListener('close', () => {
+  modal.querySelectorAll('video').forEach(video => video.pause());
+  if ($('#conflict-viewer').open) $('#conflict-viewer').close();
 });
 
 $("#modal-form").addEventListener("submit", async (event) => {

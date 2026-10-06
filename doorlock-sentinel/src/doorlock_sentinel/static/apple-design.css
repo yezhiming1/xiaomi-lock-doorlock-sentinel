@@ -122,15 +122,47 @@ button, a, summary, input, select { scroll-margin: 90px; }
 @media (max-width:380px) {
   .category-grid { grid-template-columns: 1fr; }
 }
-.modal:has(.conflict-review) { width: min(960px, calc(100vw - 32px)); }
-.conflict-item { border-top: 1px solid var(--rule); margin-top: 24px; padding-top: 20px; }
-.conflict-evidence { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.modal:has(.conflict-review) { width: min(1120px, calc(100vw - 32px)); height: min(760px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); overflow: hidden; }
+.modal:has(.conflict-review) form { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box; }
+.modal:has(.conflict-review) .modal-head, .modal:has(.conflict-review) .modal-actions, .modal:has(.conflict-review) .form-error { flex: none; }
+.modal:has(.conflict-review) .modal-body { flex: 1; min-height: 0; padding: 12px 0 0; overflow: auto; }
+.modal:has(.conflict-review) .modal-actions { border-top: 1px solid var(--rule); }
+.modal:has(.conflict-review) .form-error { margin: 8px 0; max-height: 4.5em; overflow: auto; }
+.conflict-review { height: 100%; display: flex; flex-direction: column; min-height: 0; gap: 12px; }
+.conflict-target { margin: 0; }
+.conflict-navigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none; }
+.conflict-item:not([hidden]) { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 300px); gap: 20px; overflow: auto; }
+.conflict-item[hidden], .conflict-evidence[hidden], .conflict-video[hidden], .conflict-evidence figure[hidden] { display: none; }
+.conflict-media { display: flex; flex-direction: column; min-height: 0; min-width: 0; gap: 8px; }
+.conflict-tabs { display: flex; flex-wrap: wrap; gap: 8px; flex: none; }
+.conflict-tabs [aria-pressed="true"] { background: var(--blue-soft); color: var(--blue-dark); }
+.conflict-stage { flex: 1; min-height: 180px; display: flex; overflow: hidden; border-radius: 11px; background: var(--paper); }
+.conflict-video, .conflict-evidence { width: 100%; height: 100%; min-height: 0; }
+.conflict-evidence { grid-template-columns: minmax(0, 1fr); padding: 8px; box-sizing: border-box; }
+.conflict-evidence.is-comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.conflict-evidence figure { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.conflict-image { flex: 1; min-height: 0; width: 100%; border: 0; padding: 0; background: transparent; cursor: zoom-in; border-radius: 11px; }
+.conflict-image img, .conflict-video video { height: 100%; width: 100%; max-height: none; object-fit: contain; }
+.conflict-decision { overflow: auto; min-height: 0; padding: 0 4px; }
+.conflict-decision .conflict-confirm { margin-top: 16px; }
+.conflict-item { border-top: 1px solid var(--rule); padding-top: 12px; }
+.conflict-evidence { display: grid; gap: 16px; }
 .conflict-evidence figure { margin: 0; min-width: 0; }
 .conflict-evidence figcaption { margin-bottom: 8px; }
-.conflict-evidence img, .conflict-item video { width: 100%; max-height: 320px; object-fit: contain; background: var(--paper); border-radius: 11px; }
+.conflict-evidence img, .conflict-item video { width: 100%; object-fit: contain; background: var(--paper); border-radius: 11px; }
 .conflict-confirm { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; }
 .conflict-confirm input { flex: 0 0 24px; min-height: 44px; }
-@media (max-width:680px) { .conflict-evidence { grid-template-columns: 1fr; } }
+@media (max-width:800px) {
+  .modal:has(.conflict-review) { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); }
+  .modal:has(.conflict-review) form { padding: 12px; }
+  .conflict-item:not([hidden]) { display: block; }
+  .conflict-media { height: clamp(180px, 36dvh, 360px); margin-bottom: 16px; }
+  .conflict-stage { min-height: 0; }
+  .conflict-decision { overflow: visible; }
+  .conflict-tabs { gap: 4px; }
+  .conflict-tabs .button { padding-inline: 10px; }
+}
+@media (max-height:450px) { .modal:has(.conflict-review) form { padding: 8px 12px; } .conflict-review { gap: 8px; } .conflict-target { font-size: 14px; } }
 @media (prefers-reduced-motion:reduce) {
   .button, .person-category summary::after, .pending-disclosure summary::after { transition: none; }
   .button:active { transform: none; }
