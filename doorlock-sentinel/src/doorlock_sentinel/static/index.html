@@ -4,32 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light">
-  <title>门锁观察簿 V0.0.8</title>
-  <link rel="stylesheet" href="/app.css?v=0.0.8">
-  <script src="/time-format.js?v=0.0.8" defer></script>
-  <script src="/ui-labels.js?v=0.0.8" defer></script>
-  <script src="/app.js?v=0.0.8" defer></script>
+  <title>门锁观察簿 V0.0.9</title>
+  <link rel="stylesheet" href="/app.css?v=0.0.9">
+  <link rel="stylesheet" href="/apple-design.css?v=0.0.9">
+  <script src="/time-format.js?v=0.0.9" defer></script>
+  <script src="/ui-labels.js?v=0.0.9" defer></script>
+  <script src="/app.js?v=0.0.9" defer></script>
 </head>
 <body>
   <section id="login" class="login" hidden>
     <div class="login-layout">
       <div class="login-intro">
-        <a class="login-brand" href="#events" aria-label="门锁观察簿 V0.0.8">
+        <a class="login-brand" href="#events" aria-label="门锁观察簿 V0.0.9">
           <span class="lock-mark" aria-hidden="true"></span>
-          <span><strong>门锁观察簿</strong><small>V0.0.8 · 家庭记录</small></span>
+          <span><strong>门锁观察簿</strong><small>V0.0.9 · 家庭记录</small></span>
         </a>
         <div class="login-story">
-          <h1>门前的每一次经过，<br>都有据可查。</h1>
+          <h1>欢迎回来</h1>
           <p>查看录像、核对人物样本，并了解系统如何得出每一次判断。</p>
-          <div class="privacy-note">
-            <span class="privacy-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.9 7.7 7 10 4.1-2.3 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
-            <span><strong>只整理，不开锁</strong><small>识别结果只用于整理和后续通知，永远不会触发开锁。</small></span>
-          </div>
         </div>
-        <p class="login-quiet">仅供家庭管理员使用 · 登录会话最长 12 小时</p>
       </div>
       <div class="login-panel">
-        <h2>欢迎回来</h2>
+        <h2>进入家庭记录</h2>
         <p class="login-prompt">输入管理密码，继续核对门口记录。</p>
         <form id="login-form" class="login-form">
           <label for="password">管理密码</label>
@@ -39,15 +35,16 @@
         </form>
         <p class="login-footnote">服务端仅保存可撤销会话；退出后需要重新输入密码。</p>
       </div>
+      <p class="login-privacy">仅供家庭管理员使用 · 会话最长 12 小时<br>只整理，不开锁。识别结果永远不会触发开锁。</p>
     </div>
   </section>
 
   <div id="shell" class="app" hidden>
-    <a class="skip-link" href="#content">跳到主要内容</a>
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
     <aside class="rail">
-      <a class="brand" href="#events" aria-label="门锁观察簿 V0.0.8 首页">
+      <a class="brand" href="#events" aria-label="门锁观察簿 V0.0.9 首页">
         <span class="lock-mark small" aria-hidden="true"></span>
-        <span><strong>门锁观察簿 <span class="app-version">V0.0.8</span></strong><small>门口事件记录</small></span>
+        <span><strong>门锁观察簿 <span class="app-version">V0.0.9</span></strong><small>门口事件记录</small></span>
       </a>
       <nav aria-label="主导航">
         <a href="#events" data-route="events" aria-label="事件" title="事件"><span class="nav-glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 6h13M7 12h13M7 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span><span>事件</span></a>
@@ -57,7 +54,7 @@
       </nav>
       <div class="rail-status"><span class="rail-status-label">系统状态</span><strong id="rail-health">正在核对</strong><span id="rail-note">连接服务中</span></div>
     </aside>
-    <main id="main-content">
+    <main id="main-content" tabindex="-1">
       <header class="page-header">
         <div><h1 id="page-title" tabindex="-1">事件</h1><p id="page-subtitle" class="muted"></p></div>
         <button id="refresh" class="button quiet refresh-button" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.7-2L20 12M4 12l2.8 5A7 7 0 0 0 18.5 15"/></svg><span>刷新记录</span></button>
@@ -67,7 +64,7 @@
     </main>
   </div>
 
-  <dialog id="modal" class="modal">
+  <dialog id="modal" class="modal" aria-labelledby="modal-title">
     <form id="modal-form" method="dialog">
       <div class="modal-head"><h2 id="modal-title"></h2><button class="icon-button" type="button" data-close-modal aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg></button></div>
       <div id="modal-body" class="modal-body"></div>

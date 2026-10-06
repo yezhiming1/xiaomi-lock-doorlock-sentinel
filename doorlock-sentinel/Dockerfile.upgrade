@@ -1,10 +1,10 @@
-ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.7
+ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.8
 FROM ${PREDECESSOR_IMAGE}
 
 ARG DOORLOCK_SOURCE_REVISION
-LABEL org.opencontainers.image.version="0.0.8" \
+LABEL org.opencontainers.image.version="0.0.9" \
       org.opencontainers.image.revision="${DOORLOCK_SOURCE_REVISION}" \
-      org.opencontainers.image.base.name="doorlock-sentinel:0.0.7"
+      org.opencontainers.image.base.name="doorlock-sentinel:0.0.8"
 
 USER root
 WORKDIR /app

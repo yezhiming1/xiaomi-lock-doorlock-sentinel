@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>门锁观察簿 · Apple Design 方案</title><link rel="stylesheet" href="preview.css"><script src="preview.js" defer></script></head>
+<body>
+<a class="skip" href="#main">跳到主要内容</a>
+<div class="prototype-note">设计预览 · 所有内容均为合成示例，不连接真实服务 <a href="#login">查看登录页</a></div>
+<section id="login" hidden>
+ <div class="login-card"><div class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></div><p class="login-brand">门锁观察簿 <span>V0.0.8 · 设计候选</span></p><h1>欢迎回来</h1><p class="subtle">门前的记录，安心地留在这里。</p><div class="login-demo"><strong>登录界面预览</strong><p>正式页面仍使用现有管理密码。这里不接收或保存密码。</p><button class="primary" id="enter">模拟进入观察簿</button></div><p class="privacy">只整理录像，识别结果不会触发开锁。<br>正式登录会话最长 12 小时，可随时退出。</p></div>
+</section>
+<div id="shell" class="shell">
+ <aside><a class="brand" href="#events"><span class="brand-icon small" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></span><span>门锁观察簿<small>V0.0.8 · 设计候选</small></span></a>
+ <nav aria-label="主导航">
+  <a href="#events" data-route="events"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>事件</span></a>
+  <a href="#people" data-route="people"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg><span>人物</span><span class="nav-count">2</span></a>
+  <a href="#operations" data-route="operations"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span>运行</span></a>
+  <a href="#settings" data-route="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>设置</span></a>
+ </nav><div class="aside-footer"><span class="dot" aria-hidden="true"></span> 示例系统正常 <small>识别结果仅用于整理</small></div></aside>
+ <main id="main" tabindex="-1"><header><div><p class="eyeline">家庭记录 / <span id="crumb">事件</span></p><h1 id="title" tabindex="-1">门口发生了什么</h1><p class="subtle" id="subtitle">按北京时间查看记录，点开一条了解详情。</p></div><button id="refresh" class="quiet">刷新示例</button></header><div id="feedback" role="status" aria-live="polite"></div><div id="content"></div></main>
+</div>
+<dialog id="detail"><div class="dialog-head"><h2 id="dialog-title">事件详情</h2><button class="quiet" id="close">关闭</button></div><div id="dialog-body"></div></dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+</body></html>

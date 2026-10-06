@@ -39,7 +39,7 @@ for script in docker/*.sh scripts/*.sh; do
 done
 
 if command -v npm >/dev/null 2>&1; then
-  node --test tests/ui-labels.test.cjs
+  node --test tests/ui-labels.test.cjs tests/apple-ui.test.cjs
   (
     cd services/wecom-bot
     npm ci --no-audit --no-fund
