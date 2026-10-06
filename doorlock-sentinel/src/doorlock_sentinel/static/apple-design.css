@@ -59,6 +59,22 @@ button, a, summary, input, select { scroll-margin: 90px; }
 .setting-row:last-child { border-bottom: 0; }
 .modal { border: 1px solid var(--rule); border-radius: 20px; max-height: 85dvh; }
 .toast { border-radius: 12px; }
+.person-avatar-button { width: 56px; height: 56px; min-width: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--paper); cursor: zoom-in; }
+.person-avatar-button .person-avatar { display: block; width: 100%; height: 100%; }
+.person-avatar-button:active { opacity: .72; }
+.person-viewer { width: min(960px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 24px; overflow: auto; }
+.person-viewer .modal-head { gap: 16px; align-items: flex-start; }
+.person-viewer h2 { overflow-wrap: anywhere; }
+.viewer-controls { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.viewer-controls [aria-pressed="true"] { color: var(--blue); background: var(--blue-soft); border-color: var(--blue); }
+.viewer-media { display: grid; place-items: center; min-height: 200px; border-radius: 14px; background: var(--paper); overflow: hidden; }
+.viewer-media img { display: block; object-fit: contain; max-width: 100%; max-height: 60dvh; }
+.viewer-media img[hidden] { display: none; }
+.viewer-face { width: min(360px,100%); }
+.viewer-scene { width: 100%; }
+.viewer-feedback { min-height: 3rem; }
+.viewer-feedback p { overflow-wrap: anywhere; }
+@media (max-width:680px) { .person-viewer { padding: 16px; } .viewer-media img { max-height: 48dvh; } }
 .login { padding: 40px 20px; background: var(--paper); }
 .login-layout { display: block; width: min(420px,100%); min-height: 0; border: 0; background: transparent; box-shadow: none; }
 .login-intro { padding: 0; min-height: 0; background: transparent; border: 0; align-items: center; text-align: center; }

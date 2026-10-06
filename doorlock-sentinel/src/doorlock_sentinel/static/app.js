@@ -8,6 +8,9 @@ const state = {
   people: [],
   clusters: [],
   modalHandler: null,
+  viewedPerson: null,
+  viewerKind: "face",
+  viewerRequest: 0,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -89,6 +92,7 @@ async function api(path, options = {}) {
 }
 
 function showLogin() {
+  if ($("#person-viewer").open) $("#person-viewer").close();
   state.csrf = "";
   $("#shell").hidden = true;
   $("#login").hidden = false;
@@ -243,7 +247,7 @@ function clusterCard(cluster) {
 }
 
 function personCard(person) {
-  return `<article class="person-card" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || "其他")}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`;
+  return `<article class="person-card" role="listitem"><button type="button" class="person-avatar-button" data-action="view-person" data-id="${esc(person.id)}" aria-label="查看${esc(person.display_name)}的大图">${face(person.face_url, person.display_name, "person-avatar")}</button><div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || "其他")}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`;
 }
 
 function peopleGroups(people) {
@@ -438,6 +442,53 @@ async function toggleSetting(button) {
   toast(values[key] ? "通知已开启" : "通知已关闭");
 }
 
+function loadPersonImage() {
+  const person = state.viewedPerson;
+  if (!person) return;
+  const request = ++state.viewerRequest;
+  const scene = state.viewerKind === "scene";
+  const url = scene ? person.preview_url : person.face_url;
+  const mediaNode = $("#person-viewer-media");
+  const status = $("#person-viewer-status");
+  const retry = $('[data-action="retry-person-viewer"]');
+  mediaNode.replaceChildren();
+  mediaNode.setAttribute("aria-busy", "false");
+  retry.hidden = true;
+  $('[data-action="person-viewer-face"]').setAttribute("aria-pressed", String(!scene));
+  $('[data-action="person-viewer-scene"]').setAttribute("aria-pressed", String(scene));
+  if (!url) { status.textContent = scene ? "暂无对应场景原图。" : "暂无人脸图片，可切换场景原图查看。"; return; }
+  status.textContent = "正在加载图片…";
+  mediaNode.setAttribute("aria-busy", "true");
+  const img = document.createElement("img");
+  img.alt = person.display_name + (scene ? "的带人脸框场景原图" : "的人脸大图");
+  img.className = scene ? "viewer-scene" : "viewer-face";
+  img.hidden = true;
+  img.onload = () => {
+    if (request !== state.viewerRequest) return;
+    img.hidden = false;
+    mediaNode.setAttribute("aria-busy", "false");
+    status.textContent = scene ? "场景原图 · 保留完整画面和人脸框" : "人脸大图 · 放大不会增加原图细节";
+  };
+  img.onerror = () => {
+    if (request !== state.viewerRequest) return;
+    mediaNode.setAttribute("aria-busy", "false");
+    status.textContent = "图片加载失败，请重新加载；登录失效时请刷新页面重新登录。";
+    retry.hidden = false;
+  };
+  mediaNode.append(img);
+  img.src = url;
+}
+
+function viewPerson(id) {
+  const person = state.people.find((item) => item.id === id);
+  if (!person) return;
+  state.viewedPerson = person;
+  state.viewerKind = person.face_url ? "face" : "scene";
+  $("#person-viewer-title").textContent = person.display_name + " · 人物大图";
+  $("#person-viewer").showModal();
+  loadPersonImage();
+}
+
 document.addEventListener("click", async (event) => {
   const close = event.target.closest("[data-close-modal]");
   if (close) { modal.close(); return; }
@@ -448,7 +499,14 @@ document.addEventListener("click", async (event) => {
   const action = target.dataset.action;
   const id = target.dataset.id;
   try {
-    if (action === "reload") await loadRoute();
+    if (action === "view-person") viewPerson(id);
+    else if (action === "close-person-viewer") $("#person-viewer").close();
+    else if (action === "person-viewer-face" || action === "person-viewer-scene") {
+      state.viewerKind = action === "person-viewer-face" ? "face" : "scene";
+      loadPersonImage();
+    }
+    else if (action === "retry-person-viewer") loadPersonImage();
+    else if (action === "reload") await loadRoute();
     else if (action === "scroll-to-clusters") {
       const section = document.querySelector("#review-clusters");
       const disclosure = section?.querySelector("details");
@@ -481,6 +539,12 @@ document.addEventListener("click", async (event) => {
     else if (action === "logout") await mutate("/api/session/logout", "POST", null, "已退出");
     else if (action === "revoke-all") confirmAction("撤销所有登录", "包括当前设备在内的所有登录会话都会立即失效。", "全部退出", async () => { await api("/api/session/revoke-all", { method: "POST" }); modal.close(); showLogin(); });
   } catch (error) { toast(error.message); }
+});
+
+$("#person-viewer").addEventListener("close", () => {
+  state.viewerRequest++;
+  state.viewedPerson = null;
+  $("#person-viewer-media").replaceChildren();
 });
 
 $("#modal-form").addEventListener("submit", async (event) => {
