@@ -1,4 +1,5 @@
 import hashlib
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 from conftest import create_event
@@ -9,6 +10,7 @@ from doorlock_sentinel.db import Database
 from doorlock_sentinel.models import (
     ArtifactManifest,
     Base,
+    DownloadReport,
     FaceTrack,
     LoginThrottle,
     Person,
@@ -23,6 +25,64 @@ def _migrate_for_test(settings):
     database = Database(settings)
     Base.metadata.create_all(database.engine)
     database.engine.dispose()
+
+
+def test_download_reports_sort_displayed_time_before_limiting(settings):
+    _migrate_for_test(settings)
+    app = create_app(settings)
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    with TestClient(app, base_url="http://testserver") as client:
+        with app.state.runtime.database.session() as session:
+            # Newer received/updated rows can have older downloader timestamps.
+            for index in range(35):
+                session.add(DownloadReport(
+                    id=f"synthetic-{index:02d}", event_digest=f"{index:064x}",
+                    event_time=start + timedelta(days=index),
+                    updated_at=start + timedelta(days=100-index), state="downloaded",
+                ))
+            session.add(DownloadReport(
+                id="synthetic-null", event_digest="f" * 64, event_time=None,
+                updated_at=start + timedelta(days=200), state="failed",
+            ))
+        assert client.post("/api/session/login", json={
+            "password": "correct horse battery staple",
+        }).status_code == 200
+        response = client.get("/api/system")
+        assert response.status_code == 200
+        rows = response.json()["download_reports"]
+        assert len(rows) == 30
+        assert [row["event_digest"] for row in rows] == [
+            f"{index:064x}" for index in range(34, 4, -1)
+        ]
+        assert all(row["event_time"] is not None for row in rows)
+
+
+def test_download_reports_ties_stable_and_missing_time_last(settings):
+    _migrate_for_test(settings)
+    app = create_app(settings)
+    time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    with TestClient(app, base_url="http://testserver") as client:
+        with app.state.runtime.database.session() as session:
+            # Insertion order deliberately differs from every sorting criterion.
+            values = [
+                ("c", time, time), ("missing", None, time + timedelta(days=20)),
+                ("b", time, time + timedelta(hours=1)),
+                ("a", time, time + timedelta(hours=1)),
+                ("newest", time + timedelta(days=1), time),
+            ]
+            for index, (name, event_time, updated_at) in enumerate(values):
+                session.add(DownloadReport(
+                    id=name, event_digest=f"{index:064x}", event_time=event_time,
+                    updated_at=updated_at, state="downloaded",
+                ))
+        client.post("/api/session/login", json={"password": "correct horse battery staple"})
+        expected = [f"{index:064x}" for index in [4, 3, 2, 0, 1]]
+        for _ in range(2):
+            response = client.get("/api/system")
+            assert response.status_code == 200
+            rows = response.json()["download_reports"]
+            assert [row["event_digest"] for row in rows] == expected
+            assert rows[-1]["event_time"] is None
 
 
 def test_password_session_csrf_and_internal_boundary(settings):

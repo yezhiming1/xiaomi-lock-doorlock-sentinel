@@ -492,7 +492,16 @@ def system(
     model = session.get(ModelRegistry, context.runtime.settings.model_id)
     audits = list(session.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(40)))
     downloads = list(
-        session.scalars(select(DownloadReport).order_by(DownloadReport.updated_at.desc()).limit(30))
+        session.scalars(
+            select(DownloadReport)
+            .order_by(
+                DownloadReport.event_time.is_(None),
+                DownloadReport.event_time.desc(),
+                DownloadReport.updated_at.desc(),
+                DownloadReport.id.asc(),
+            )
+            .limit(30)
+        )
     )
     failed_ingests = list(
         session.scalars(
