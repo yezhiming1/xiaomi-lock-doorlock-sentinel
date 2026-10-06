@@ -16,7 +16,7 @@ COPY migrations ./migrations
 COPY docker ./docker
 COPY scripts ./scripts
 COPY docs ./docs
-COPY services/wecom-bot/package.json ./services/wecom-bot/package.json
+COPY services/wecom-bot/package.json services/wecom-bot/package-lock.json ./services/wecom-bot/
 
 RUN /opt/venv/bin/pip install --no-cache-dir --no-index \
       --no-build-isolation --no-deps . \

@@ -40,6 +40,7 @@ def test_release_version_surfaces_are_consistent():
     )
     assert "ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.8" in upgrade_dockerfile
     assert f'org.opencontainers.image.version="{version}"' in upgrade_dockerfile
+    assert "services/wecom-bot/package-lock.json ./services/wecom-bot/" in upgrade_dockerfile
     assert "PREDECESSOR_IMAGE=doorlock-sentinel:0.0.8" in upgrade_script
     assert f"TARGET_IMAGE=doorlock-sentinel:{version}" in upgrade_script
     index = (ROOT / "src" / "doorlock_sentinel" / "static" / "index.html").read_text(
