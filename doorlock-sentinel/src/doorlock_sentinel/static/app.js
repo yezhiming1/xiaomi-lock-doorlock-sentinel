@@ -27,10 +27,10 @@ const relationshipLabels = {
   other: "其他",
 };
 const routeCopy = {
-  events: ["门口发生了什么", "按北京时间排列，训练期不发送身份通知。"],
-  people: ["人物与未知簇", "只把清晰、可核对的样本纳入学习；人工决定均可撤销。"],
-  operations: ["失败与备份状态", "下载、分析、通知和备份回执都不会静默失败。"],
-  settings: ["通知与安全", "身份和风险通知默认关闭；运行故障通知始终开启。"],
+  events: ["门口记录", "按北京时间排列，训练期不发送身份通知。"],
+  people: ["熟悉的人，清晰的记录", "先核对待确认人物，再按类别查看已经认识的人。"],
+  operations: ["运行状态", "查看下载、分析、通知与备份；异常会保留记录。"],
+  settings: ["让提醒恰到好处", "身份和风险通知默认关闭；运行故障通知始终开启。"],
 };
 
 function esc(value) {
@@ -242,14 +242,25 @@ function clusterCard(cluster) {
   </article>`;
 }
 
+function personCard(person) {
+  return `<article class="person-card" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || "其他")}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`;
+}
+
+function peopleGroups(people) {
+  return Object.entries(relationshipLabels).map(([key, label]) => ({
+    key, label,
+    people: people.filter((person) => (Object.hasOwn(relationshipLabels, person.relationship) ? person.relationship : "other") === key),
+  }));
+}
+
 function renderPeopleContent() {
   const peopleHtml = state.people.length
-    ? `<div class="people-list" role="list">${state.people.map((person) => `<article class="person-card" role="listitem">${face(person.face_url, person.display_name, "person-avatar")}<div class="person-copy"><div class="person-name"><h3>${esc(person.display_name)}</h3><span class="relationship-tag">${esc(relationshipLabels[person.relationship] || person.relationship)}</span></div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p></div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`).join("")}</div>`
+    ? `<div class="category-grid">${peopleGroups(state.people).map((group) => `<details class="person-category" data-category="${group.key}"><summary><span class="category-icon" aria-hidden="true">${group.label.slice(0,1)}</span><span class="category-copy"><strong>${group.label}</strong><small>${group.people.length} 人 · 展开查看</small></span></summary>${group.people.length ? `<div class="people-list" role="list">${group.people.map(personCard).join("")}</div>` : '<div class="empty"><strong>这个类别还没有人物</strong><p>核对人物时可选择此类别。</p></div>'}</details>`).join("")}</div>`
     : '<div class="empty"><strong>还没有已确认人物</strong><p>确认待核对的人物簇后，清晰代表样本会在这里持续积累。</p><button class="button quiet" data-action="scroll-to-clusters">查看待确认人物</button></div>';
   const clustersHtml = state.clusters.length
     ? `<details class="pending-disclosure"><summary><span class="pending-disclosure-title">待确认</span><span class="pending-disclosure-count">${state.clusters.length} 组</span><span class="pending-disclosure-hint">展开查看样本、录像和核对操作</span></summary><div class="pending-clusters" role="list">${state.clusters.map(clusterCard).join("")}</div></details>`
     : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p><a class="button quiet" href="#operations">查看运行状态</a></div>';
-  content.innerHTML = `<section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>永久保留高质量代表样本，数量不设硬上限。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section><section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">待确认人物簇</h2><p>当前没有类别可供归组；展开后逐组核对，样本、录像与原有操作均保留。</p></div></div>${clustersHtml}</section>`;
+  content.innerHTML = `<section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">等待您的确认</h2><p>先核对样本和对应录像；不确定时保持未知。</p></div></div>${clustersHtml}</section><section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>每个类别一个入口，展开查看人物与原有操作。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section>`;
 }
 
 async function renderPeople() {
@@ -438,7 +449,13 @@ document.addEventListener("click", async (event) => {
   const id = target.dataset.id;
   try {
     if (action === "reload") await loadRoute();
-    else if (action === "scroll-to-clusters") document.querySelector("#review-clusters")?.scrollIntoView();
+    else if (action === "scroll-to-clusters") {
+      const section = document.querySelector("#review-clusters");
+      const disclosure = section?.querySelector("details");
+      if (disclosure) disclosure.open = true;
+      section?.scrollIntoView();
+      disclosure?.querySelector("summary")?.focus({ preventScroll: true });
+    }
     else if (action === "select-event") { state.selectedEvent = state.events.find((item) => item.id === id); state.selectedTrack = 0; await renderEvents(); }
     else if (action === "select-track") { state.selectedTrack = Number(target.dataset.index); await renderEvents(); }
     else if (action === "select-cluster-track") {

@@ -1,14 +1,14 @@
 :root {
   color-scheme: light;
-  --paper: #f2f6fa;
-  --sheet: #fbfdff;
-  --ink: #24364b;
-  --muted: #586a7e;
-  --rule: #c9d5e1;
-  --rule-dark: #aabccd;
-  --blue: #245b9b;
-  --blue-dark: #19497f;
-  --blue-soft: #dce9f6;
+  --paper: #f5f5f7;
+  --sheet: #ffffff;
+  --ink: #1d1d1f;
+  --muted: #606068;
+  --rule: #dedee3;
+  --rule-dark: #9898a1;
+  --blue: #005ec4;
+  --blue-dark: #004b9d;
+  --blue-soft: #e9f1ff;
   --stamp: #bd3f2e;
   --stamp-soft: #fae4df;
   --green: #246d53;
@@ -17,7 +17,7 @@
   --amber-soft: #f6ebc9;
   --focus: #0867c2;
   --danger: #a63225;
-  --radius: 10px;
+  --radius: 18px;
 }
 
 * { box-sizing: border-box; }
@@ -28,7 +28,8 @@ body {
   min-height: 100dvh;
   color: var(--ink);
   background: var(--paper);
-  font-family: "Noto Sans SC", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-optical-sizing: auto;
   font-size: 16px;
   line-height: 1.55;
 }
