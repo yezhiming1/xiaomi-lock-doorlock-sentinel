@@ -23,7 +23,7 @@ def test_release_version_surfaces_are_consistent():
         )
     )
 
-    assert version == "0.0.9"
+    assert version == "0.1.0"
     assert __version__ == version
     assert package["version"] == version
     assert package_lock["version"] == version
@@ -38,10 +38,10 @@ def test_release_version_surfaces_are_consistent():
     upgrade_script = (ROOT / "scripts" / "build_upgrade_image.sh").read_text(
         encoding="utf-8"
     )
-    assert "ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.8" in upgrade_dockerfile
+    assert "ARG PREDECESSOR_IMAGE=doorlock-sentinel:0.0.9" in upgrade_dockerfile
     assert f'org.opencontainers.image.version="{version}"' in upgrade_dockerfile
     assert "services/wecom-bot/package-lock.json ./services/wecom-bot/" in upgrade_dockerfile
-    assert "PREDECESSOR_IMAGE=doorlock-sentinel:0.0.8" in upgrade_script
+    assert "PREDECESSOR_IMAGE=doorlock-sentinel:0.0.9" in upgrade_script
     assert f"TARGET_IMAGE=doorlock-sentinel:{version}" in upgrade_script
     index = (ROOT / "src" / "doorlock_sentinel" / "static" / "index.html").read_text(
         encoding="utf-8"

@@ -1,5 +1,22 @@
 # 发布记录
 
+## V0.1.0 候选
+
+类别：NON_INSTALLER_RELEASE，既有 Docker 服务更新，无安装器。
+授权 outcome：`sha256:2066adf88ffc328e45fba2d52046611f49052b9bd2c4d7894a3201993b81c630`。
+前代 V0.0.9 镜像身份及归档摘要与其下方发布记录相符；新恢复集包含配置、
+在线 SQLite 快照（integrity/FK 通过）及镜像，部署前再次读取清单和配置。
+回退使用前代 Compose/镜像及原配置，保留当前业务数据库；恢复后核对 live/ready、
+双进程、运行配置、schema/integrity/FK、业务计数及真实网页。
+
+- 本地 Python 54、前端 Node 9、通知 Node 4、Ruff、TypeScript、生产依赖审计、
+  模型锁、129 文件公开树、原生 Windows 迁移往返及合成烟雾链通过。
+- 通用 shell 验证在 Windows 的 POSIX 临时 SQLite 路径失败；已保留失败，
+  用原生绝对路径完成迁移往返，不修改生产或迁移脚本。Linux CI 待执行。
+- 合成 Edge 验证 1440/768/390 与横屏、头像点击/Enter、大图、场景切换、Escape
+  返回焦点、失败重试和缺图提示。手机控件至少 44px，无页面横向溢出。
+- 当前部署与真实页面验收：NOT_RUN。最大字号、屏幕阅读器：UNKNOWN。
+
 ## V0.0.9
 
 状态：`DEPLOYED / RELEASE_GATE_OPEN`。Apple Design 正式页面已上线，正式标签与 GitHub

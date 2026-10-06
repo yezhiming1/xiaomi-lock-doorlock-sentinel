@@ -34,3 +34,36 @@ test("empty state has recovery path and CSS retains accessibility preferences", 
   const css=fs.readFileSync(require("node:path").join(__dirname,"../src/doorlock_sentinel/static/apple-design.css"),"utf8");
   for(const marker of [":focus-visible","min-width: 44px","prefers-reduced-motion","prefers-reduced-transparency","prefers-contrast","overflow-x: auto"]) assert.ok(css.includes(marker));
 });
+
+test("confirmed avatars are accessible buttons with escaped identifiers", () => {
+  const {scope}=context();
+  const html=vm.runInContext('personCard({id:"x\\\"<",display_name:"<名字>",face_url:"/api/artifacts/face",matched_events:1,distinct_days:1})',scope);
+  assert.ok(html.includes('data-action="view-person"'));
+  assert.ok(html.includes('aria-label="查看&lt;名字&gt;的大图"'));
+  assert.ok(html.includes('data-id="x&quot;&lt;"'));
+  assert.ok(!html.includes('data-id="x"<"'));
+});
+
+test("viewer loads matching images, handles failure, absence and stale callbacks", () => {
+  const nodes=new Map(), images=[];
+  function node() { return {textContent:"",hidden:false,attrs:{},children:[],setAttribute(k,v){this.attrs[k]=v;},replaceChildren(){this.children=[];},append(img){this.children.push(img);},showModal(){this.open=true;}}; }
+  const scope={document:{querySelector(selector){if(!nodes.has(selector)) nodes.set(selector,node());return nodes.get(selector);},createElement(){const img=node();images.push(img);return img;}},DoorlockTime:{dayLabel:()=>"",formatDate:()=>""}};
+  vm.createContext(scope);
+  vm.runInContext(source.slice(0,source.indexOf('document.addEventListener("click"')),scope);
+  vm.runInContext('state.people=[{id:"a",display_name:"合成人物",face_url:"/api/artifacts/face",preview_url:"/api/artifacts/scene"}]; viewPerson("a")',scope);
+  assert.equal(images[0].src,"/api/artifacts/face");
+  assert.equal(nodes.get("#person-viewer-media").attrs["aria-busy"],"true");
+  vm.runInContext('state.viewerKind="scene";loadPersonImage()',scope);
+  assert.equal(images[1].src,"/api/artifacts/scene");
+  images[0].onerror();
+  assert.equal(nodes.get('[data-action="retry-person-viewer"]').hidden,true);
+  images[1].onerror();
+  assert.equal(nodes.get('[data-action="retry-person-viewer"]').hidden,false);
+  vm.runInContext("loadPersonImage()",scope);
+  images[2].onload();
+  assert.equal(images[2].hidden,false);
+  assert.equal(nodes.get("#person-viewer-media").attrs["aria-busy"],"false");
+  vm.runInContext('state.viewedPerson={};loadPersonImage()',scope);
+  assert.equal(images.length,3);
+  assert.ok(nodes.get("#person-viewer-status").textContent.includes("暂无"));
+});

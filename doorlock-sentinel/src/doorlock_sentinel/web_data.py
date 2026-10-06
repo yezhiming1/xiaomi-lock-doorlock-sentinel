@@ -379,6 +379,7 @@ def people(
                 "first_seen": _iso(person.first_seen),
                 "last_seen": _iso(person.last_seen),
                 "face_url": _artifact_url(exemplar.best_face_artifact_id) if exemplar else None,
+                "preview_url": _artifact_url(exemplar.best_frame_artifact_id) if exemplar else None,
             }
         )
     return {"items": items}
