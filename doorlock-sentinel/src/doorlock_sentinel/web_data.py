@@ -285,6 +285,7 @@ def bootstrap(
     )
     return {
         "version": __version__,
+        "owner_display_name": context.runtime.settings.owner_display_name,
         "counts": {
             "events": scalar_count(Event),
             "people": scalar_count(Person, Person.status != "merged"),

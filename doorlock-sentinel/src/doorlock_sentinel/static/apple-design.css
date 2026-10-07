@@ -47,6 +47,12 @@ button, a, summary, input, select { scroll-margin: 90px; }
 .person-category[open] summary::after { transform: rotate(225deg); }
 .person-category .people-list { padding: 12px; border-top: 1px solid var(--rule); }
 .person-card { border-radius: 14px; }
+.owner-entry .people-list { padding: 12px; border-top: 0; }
+.owner-entry .person-card { flex-wrap: wrap; }
+.owner-entry .person-copy { flex: 1; min-width: 100px; }
+.owner-entry .person-actions { flex-wrap: wrap; }
+.owner-entry .person-card { border: 0; background: transparent; padding: 8px; }
+.person-category .people-list > .field-hint { grid-column: 1/-1; }
 .person-avatar { border-radius: 50%; }
 .person-name h3 { overflow-wrap: anywhere; }
 .pending-disclosure { border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
@@ -100,7 +106,8 @@ button, a, summary, input, select { scroll-margin: 90px; }
   .workspace { grid-template-columns: 1fr; }
   .category-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
-@media (max-width:680px) {
+  @media (max-width:680px) {
+    .owner-entry { grid-column: 1/-1; }
   .app { display: block; }
   .rail { background: rgba(250,250,252,.96); }
   main { padding: 28px 20px 36px; }

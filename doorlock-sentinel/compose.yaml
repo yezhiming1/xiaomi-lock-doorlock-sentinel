@@ -2,7 +2,7 @@ services:
   doorlock-sentinel:
     build:
       context: .
-    image: doorlock-sentinel:0.1.4
+    image: doorlock-sentinel:0.1.5
     container_name: doorlock-sentinel
     restart: unless-stopped
     stop_grace_period: 45s
@@ -12,6 +12,7 @@ services:
     environment:
       TZ: ${TZ:-Asia/Shanghai}
       DOORLOCK_ENVIRONMENT: production
+      DOORLOCK_OWNER_DISPLAY_NAME: ${DOORLOCK_OWNER_DISPLAY_NAME:-本人}
       DOORLOCK_DATABASE_URL: sqlite:////data/doorlock.sqlite3
       DOORLOCK_DATA_DIR: /data
       DOORLOCK_INBOX_DIR: /inbox

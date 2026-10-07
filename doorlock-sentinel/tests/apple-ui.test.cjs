@@ -17,10 +17,23 @@ test("all categories remain ordered and unknown relationships are retained", () 
   assert.equal(result.flatMap(x=>x.people).length,4);
   assert.equal(result.find(x=>x.key==="other").people.length,2);
 });
+
+test("owner is direct and food delivery groups preserve separate identities without numbered names", () => {
+  const {scope,node}=context();
+  vm.runInContext('state.ownerName="Synthetic Owner";state.people=[{id:"owner",relationship:"self",display_name:"我 1",matched_events:2,distinct_days:1},{id:"delivery-a",relationship:"food_delivery",display_name:"外卖 1",matched_events:3,distinct_days:2},{id:"delivery-b",relationship:"food_delivery",display_name:"外卖 2",matched_events:1,distinct_days:1}];renderPeopleContent()',scope);
+  assert.ok(node.innerHTML.includes('owner-entry'));
+  assert.ok(!node.innerHTML.includes('data-category="self"'));
+  assert.equal((node.innerHTML.match(/data-category="food_delivery"/g)||[]).length,1);
+  assert.ok(node.innerHTML.includes('Synthetic Owner'));
+  assert.ok(!node.innerHTML.includes('外卖 1')&&!node.innerHTML.includes('外卖 2'));
+  assert.ok(node.innerHTML.includes('data-id="delivery-a"')&&node.innerHTML.includes('data-id="delivery-b"'));
+  assert.ok(!node.innerHTML.includes('data-action="merge-person"'));
+  assert.ok(vm.runInContext('relationshipSelect("self")',scope).includes('Synthetic Owner'));
+});
 test("one entry per category, pending first, names escaped and actions retained", () => {
   const {scope,node}=context();
   vm.runInContext('state.people=[{id:"a",relationship:"friend",display_name:"<script>bad</script>",matched_events:2,distinct_days:1},{id:"b",relationship:"friend",display_name:"Synthetic B",matched_events:3,distinct_days:2}]; renderPeopleContent()',scope);
-  assert.equal((node.innerHTML.match(/class="person-category"/g)||[]).length,10);
+  assert.equal((node.innerHTML.match(/class="person-category(?:"| )/g)||[]).length,10);
   assert.ok(node.innerHTML.indexOf('id="review-clusters"')<node.innerHTML.indexOf('id="people-heading"'));
   assert.ok(node.innerHTML.includes("&lt;script&gt;bad&lt;/script&gt;"));
   assert.ok(!node.innerHTML.includes("<script>"));
