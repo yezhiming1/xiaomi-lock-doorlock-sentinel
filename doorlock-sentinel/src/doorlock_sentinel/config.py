@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "production"
     log_level: str = "INFO"
     timezone: str = "Asia/Shanghai"
+    owner_display_name: str = "本人"
 
     data_dir: Path = Path("/data")
     inbox_dir: Path = Path("/inbox")

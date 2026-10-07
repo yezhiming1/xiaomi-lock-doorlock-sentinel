@@ -27,6 +27,17 @@ def _migrate_for_test(settings):
     database.engine.dispose()
 
 
+def test_owner_display_name_is_private_runtime_configuration(settings):
+    settings.owner_display_name = "Synthetic Owner"
+    _migrate_for_test(settings)
+    with TestClient(create_app(settings), base_url="http://testserver") as client:
+        assert client.get("/api/bootstrap").status_code == 401
+        public = client.get("/").text
+        assert "Synthetic Owner" not in public
+        client.post("/api/session/login", json={"password": "correct horse battery staple"})
+        assert client.get("/api/bootstrap").json()["owner_display_name"] == "Synthetic Owner"
+
+
 def test_download_reports_sort_displayed_time_before_limiting(settings):
     _migrate_for_test(settings)
     app = create_app(settings)
@@ -147,7 +158,7 @@ def test_security_headers_cover_static_console(settings):
         assert "default-src 'self'" in response.headers["content-security-policy"]
         app_js = client.get("/app.js")
         assert app_js.headers["cache-control"] == "no-store"
-        assert 'self: "我"' in app_js.text
+        assert 'self: "本人"' in app_js.text
         assert 'friend: "朋友"' in app_js.text
         assert 'food_delivery: "外卖"' in app_js.text
         assert app_js.text.index('food_delivery: "外卖"') < app_js.text.index(
