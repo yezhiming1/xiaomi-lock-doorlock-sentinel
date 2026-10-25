@@ -37,9 +37,27 @@ DOORLOCK_DATA_DIR=/absolute/private/application-data
 DOORLOCK_INBOX_DIR=/absolute/read-only/video-directory
 DOORLOCK_MODELS_DIR=/absolute/private/model-directory
 DOORLOCK_SECRETS_DIR=/absolute/private/secret-directory
+DOORLOCK_CLOUD_PLAYBACK_SOCKET_DIR=/absolute/private/short-socket-directory
 DOORLOCK_DETECTOR_SHA256=<models.lock.json 中的值>
 DOORLOCK_RECOGNIZER_SHA256=<models.lock.json 中的值>
 ```
+
+V0.1.7 需要先按 `services/cloud-playback/README.md` 启动独立解析器，再挂载其 Socket 目录。
+服务端绑定和宿主客户端连接所用的 Unix Socket 路径都必须少于 108 字节；按文件系统编码
+计数字节，不能只数字符。令牌目录不能挂入应用，包括不能挂入它的任何祖先目录。
+Socket 目录与令牌目录分离；对前后实际挂载做规范化路径双向包含检查，不使用字符串前缀。
+
+## SQLite 前代恢复集验收
+
+使用 SQLite backup API 获取一致快照。Python `with sqlite3.connect(...)` 只管理事务，
+不能代替显式 `connection.close()`；必须在所有备份/校验连接关闭后再枚举和封存文件。
+恢复数据库应固化为独立 DELETE journal 模式，并在关闭后用新的只读连接核验 integrity、
+foreign keys、schema 和计数，确认不依赖自动消失的 `-wal`、`-shm` 文件。
+
+先封存稳定文件清单和逐文件摘要，再由独立进程重读；切换前必须消费同一清单的完整回读。
+若旧清单包含瞬态文件，停止切换并保留旧清单和数据库。创建新的独立恢复数据库与后继清单，
+核验成功后才改用后继清单；不能删除缺失条目来掩盖未核查的数据依赖，也不能覆盖唯一前代。
+数据库损坏恢复与应用版本回退分开，普通版本回退保留正在使用的业务数据库。
 
 V0.0.6 的 N100 工作值延续 V0.0.5：
 
