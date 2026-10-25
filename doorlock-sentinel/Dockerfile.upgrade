@@ -18,6 +18,9 @@ COPY scripts ./scripts
 COPY docs ./docs
 COPY services/wecom-bot/package.json services/wecom-bot/package-lock.json ./services/wecom-bot/
 
+RUN cd /app/services/wecom-bot \
+    && npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+
 RUN /opt/venv/bin/pip install --no-cache-dir --no-index \
       --no-build-isolation --no-deps . \
     && /opt/venv/bin/pip check \
