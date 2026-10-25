@@ -178,3 +178,7 @@ button, a, summary, input, select { scroll-margin: 90px; }
   .rail { background: #eeeef2; backdrop-filter: none; }
   .person-category, .detail, .ledger, .settings-sheet { border-color: #888891; }
 }
+.grouped-category { grid-column: 1 / -1; }
+.category-maintenance { padding: 0 16px 16px; }
+.category-maintenance > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+#person-viewer-pagination { flex-wrap: wrap; align-items: center; justify-content: space-between; }

@@ -40,6 +40,41 @@ test("one entry per category, pending first, names escaped and actions retained"
   assert.equal((node.innerHTML.match(/data-action="rename-person"/g)||[]).length,2);
   assert.equal((node.innerHTML.match(/data-action="merge-person"/g)||[]).length,2);
 });
+
+test("grouped categories have one visible identity-free entry and keep all separate records", () => {
+  const {scope}=context();
+  for (const [key,label] of [["food_delivery","外卖"],["cleaner","保洁"],["stranger","陌生人"]]) {
+    const result=vm.runInContext(`personGroup({key:${JSON.stringify(key)},label:${JSON.stringify(label)},people:[{id:"first",relationship:${JSON.stringify(key)},display_name:"old 1"},{id:"second",relationship:${JSON.stringify(key)},display_name:"old 2"}]})`,scope);
+    const primary=result.split('<details class="category-maintenance">')[0];
+    assert.equal((primary.match(/<article /g)||[]).length,1);
+    assert.equal((primary.match(/<h3>/g)||[]).length,1);
+    assert.ok(primary.includes(`<h3>${label}</h3>`));
+    assert.ok(!result.includes('old 1')&&!result.includes('old 2'));
+    assert.ok(result.includes('data-id="first"')&&result.includes('data-id="second"'));
+    assert.ok(!result.includes('data-action="merge-person"'));
+    const empty=vm.runInContext(`personGroup({key:${JSON.stringify(key)},label:${JSON.stringify(label)},people:[]})`,scope);
+    assert.ok(empty.includes('暂无已确认样本'));
+    assert.ok(!empty.includes('data-action="view-category"'));
+  }
+});
+
+test("category gallery navigates only its own independent records and enforces boundaries", () => {
+  const nodes=new Map();
+  const node=()=>({textContent:"",hidden:false,open:false,setAttribute(){},replaceChildren(){},append(){},showModal(){this.open=true;}});
+  const scope={document:{querySelector(s){if(!nodes.has(s))nodes.set(s,node());return nodes.get(s);},createElement:node},DoorlockTime:{dayLabel:()=>"",formatDate:()=>""}};
+  vm.createContext(scope);vm.runInContext(source.slice(0,source.indexOf('document.addEventListener("click"')),scope);
+  vm.runInContext('state.people=[{id:"a",relationship:"stranger",face_url:"/first"},{id:"other",relationship:"friend"},{id:"b",relationship:"stranger",preview_url:"/last"}];viewCategory("stranger")',scope);
+  assert.equal(nodes.get('#person-viewer-position').textContent,'样本 1 / 2');
+  assert.equal(nodes.get('[data-action="previous-person-sample"]').disabled,true);
+  vm.runInContext('showViewerPerson(1)',scope);
+  assert.equal(vm.runInContext('state.viewedPerson.id',scope),'b');
+  assert.equal(vm.runInContext('state.viewerKind',scope),'scene');
+  assert.equal(nodes.get('[data-action="next-person-sample"]').disabled,true);
+  vm.runInContext('showViewerPerson(2);showViewerPerson(-1)',scope);
+  assert.equal(vm.runInContext('state.viewedPerson.id',scope),'b');
+  vm.runInContext('viewPerson("a")',scope);
+  assert.equal(nodes.get('#person-viewer-pagination').hidden,true);
+});
 test("empty state has recovery path and CSS retains accessibility preferences", () => {
   const {scope,node}=context();
   vm.runInContext("renderPeopleContent()",scope);

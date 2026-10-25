@@ -13,6 +13,8 @@ const state = {
   modalHandler: null,
   modalRequest: 0,
   viewedPerson: null,
+  viewerPeople: [],
+  viewerIndex: 0,
   viewerKind: "face",
   viewerRequest: 0,
 };
@@ -51,7 +53,7 @@ function esc(value) {
 
 function personName(person) {
   if (person.relationship === "self") return state.ownerName || person.display_name || "本人";
-  if (person.relationship === "food_delivery") return "外卖";
+  if (["food_delivery", "cleaner", "stranger"].includes(person.relationship)) return relationshipLabels[person.relationship];
   return person.display_name || "未命名人物";
 }
 
@@ -266,11 +268,15 @@ function clusterCard(cluster) {
 
 function personCard(person) {
   const name = personName(person);
-  const grouped = person.relationship === "food_delivery";
-  return `<article class="person-card" role="listitem"><button type="button" class="person-avatar-button" data-action="view-person" data-id="${esc(person.id)}" aria-label="查看${esc(name)}的大图">${face(person.face_url, name, "person-avatar")}</button><div class="person-copy"><div class="person-name"><h3>${esc(name)}</h3>${["self", "food_delivery"].includes(person.relationship) ? "" : `<span class="relationship-tag">${esc(relationshipLabel(person.relationship))}</span>`}</div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p>${grouped ? '<p class="field-hint">独立人脸样本，不与其他外卖员合并</p>' : ""}</div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 && !grouped && person.relationship !== "self" ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`;
+  const grouped = ["food_delivery", "cleaner", "stranger"].includes(person.relationship);
+  return `<article class="person-card" role="listitem"><button type="button" class="person-avatar-button" data-action="view-person" data-id="${esc(person.id)}" aria-label="查看${esc(name)}的大图">${face(person.face_url, name, "person-avatar")}</button><div class="person-copy"><div class="person-name"><h3>${esc(name)}</h3>${(grouped || person.relationship === "self") ? "" : `<span class="relationship-tag">${esc(relationshipLabel(person.relationship))}</span>`}</div><p>出现在 ${person.matched_events} 次录像 · ${person.distinct_days} 天</p>${grouped ? '<p class="field-hint">独立人脸样本，不与其他人合并</p>' : ""}</div><div class="person-actions"><button class="button small quiet" data-action="rename-person" data-id="${esc(person.id)}">修改</button>${state.people.length > 1 && !grouped && person.relationship !== "self" ? `<button class="button small quiet" data-action="merge-person" data-id="${esc(person.id)}">合并到…</button>` : ""}</div></article>`;
 }
 
 function personGroup(group) {
+  if (["food_delivery", "cleaner", "stranger"].includes(group.key)) {
+    const representative = group.people.find(person => person.face_url) || group.people[0];
+    return `<section class="person-category grouped-category" data-category="${group.key}" aria-label="${esc(group.label)}"><div class="people-list" role="list"><article class="person-card" role="listitem">${representative ? `<button type="button" class="person-avatar-button" data-action="view-category" data-id="${group.key}" aria-label="查看${esc(group.label)}的全部样本">${face(representative.face_url, group.label, "person-avatar")}</button>` : ""}<div class="person-copy"><div class="person-name"><h3>${esc(group.label)}</h3></div><p>${group.people.length ? `已归类 ${group.people.length} 组独立人脸样本` : "暂无已确认样本"}</p><p class="field-hint">统一归类，不合并不同人的身份。</p></div>${representative ? `<div class="person-actions"><button type="button" class="button small quiet" data-action="view-category" data-id="${group.key}">查看全部样本</button></div>` : ""}</article></div>${representative ? `<details class="category-maintenance"><summary>管理独立样本</summary><p class="field-hint">仅在需要修改样本类别时展开；不同人仍分别学习。</p><div class="people-list" role="list">${group.people.map(personCard).join("")}</div></details>` : ""}</section>`;
+  }
   if (group.key === "self") {
     return `<section class="person-category owner-entry" aria-label="${esc(relationshipLabel("self"))}"><div class="people-list" role="list">${group.people.length ? group.people.map(personCard).join("") : `<div class="empty"><strong>${esc(relationshipLabel("self"))}</strong><p>核对本人样本后显示在这里。</p></div>`}</div>${group.people.length > 1 ? '<p class="field-hint">存在多条本人记录，请核对；系统不会自动合并。</p>' : ""}</section>`;
   }
@@ -395,7 +401,7 @@ function updateAutomaticNameHint() {
   if (!relationship || !hint) return;
   const update = () => {
     const label = relationshipLabels[relationship.value] || "人物";
-    hint.textContent = relationship.value === "food_delivery" ? "统一显示为外卖，各人的人脸样本分别学习，不合并身份。" : relationship.value === "self" ? "本人直接显示私有设置中的姓名；已有本人样本请并入已有身份。" : `可以留空；系统会按顺序自动命名为“${label} 1”“${label} 2”等。`;
+    hint.textContent = ["food_delivery", "cleaner", "stranger"].includes(relationship.value) ? `统一显示为${label}，各人的人脸样本分别学习，不合并身份。` : relationship.value === "self" ? "本人直接显示私有设置中的姓名；已有本人样本请并入已有身份。" : `可以留空；系统会按顺序自动命名为“${label} 1”“${label} 2”等。`;
   };
   relationship.addEventListener("change", update);
   update();
@@ -598,10 +604,28 @@ function loadPersonImage() {
 function viewPerson(id) {
   const person = state.people.find((item) => item.id === id);
   if (!person) return;
+  state.viewerPeople = [person];
+  showViewerPerson(0);
+}
+
+function viewCategory(key) {
+  state.viewerPeople = state.people.filter(person => person.relationship === key);
+  if (state.viewerPeople.length) showViewerPerson(0);
+}
+
+function showViewerPerson(index) {
+  const person = state.viewerPeople?.[index];
+  if (!person) return;
+  state.viewerIndex = index;
   state.viewedPerson = person;
   state.viewerKind = person.face_url ? "face" : "scene";
   $("#person-viewer-title").textContent = personName(person) + " · 人物大图";
-  $("#person-viewer").showModal();
+  const total = state.viewerPeople.length;
+  $("#person-viewer-position").textContent = `样本 ${index + 1} / ${total}`;
+  $('[data-action="previous-person-sample"]').disabled = index === 0;
+  $('[data-action="next-person-sample"]').disabled = index + 1 === total;
+  $("#person-viewer-pagination").hidden = total <= 1;
+  if (!$("#person-viewer").open) $("#person-viewer").showModal();
   loadPersonImage();
 }
 
@@ -615,7 +639,9 @@ document.addEventListener("click", async (event) => {
   const action = target.dataset.action;
   const id = target.dataset.id;
   try {
-    if (action === "conflict-previous" || action === "conflict-next") {
+    if (action === "view-category") viewCategory(id);
+    else if (action === "previous-person-sample" || action === "next-person-sample") showViewerPerson(state.viewerIndex + (action === "next-person-sample" ? 1 : -1));
+    else if (action === "conflict-previous" || action === "conflict-next") {
       const current = $('.conflict-item:not([hidden])');
       if (current) showConflict(Number(current.dataset.conflictIndex) + (action === "conflict-next" ? 1 : -1));
       $('#modal-error').textContent = '';
