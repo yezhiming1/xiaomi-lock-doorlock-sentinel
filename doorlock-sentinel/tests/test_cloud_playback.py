@@ -1,4 +1,8 @@
 import importlib.util
+import json
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -60,6 +64,9 @@ def test_video_redirect_ignores_local_presence(settings, monkeypatch, local_pres
     "http://test.115cdn.net/file", "https://115cdn.net.evil.invalid/file",
     "https://user@test.115cdn.net/file", "https://test.115cdn.net:444/file",
     "https://127.0.0.1/file", "file:///video.mp4",
+    "https://outside.example\\.115cdn.net/video.mp4",
+    "https://outside.example%5C.115cdn.net/video.mp4",
+    "https://invalid_host.115cdn.net/video.mp4",
 ])
 def test_reject_untrusted_playback_url(url):
     with pytest.raises(ValueError):
@@ -117,3 +124,78 @@ def test_resolver_mismatch_stops_before_downurl(tmp_path):
     with pytest.raises(module.ResolverError):
         resolver.resolve({"path": "/backups/test/test.mp4", "size": 12, "user_agent": "browser"})
     assert calls == ["/open/folder/get_info"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux Unix socket and flock contract")
+def test_two_sockets_cannot_own_one_token_state(tmp_path):
+    module = load_resolver()
+    state = tmp_path / "state.json"
+    state.write_text('{"access_token":"synthetic","expires_at":9999999999}')
+    script = Path(module.__file__)
+    code = (
+        "import os,runpy,sys;os.chown=lambda *args:None;"
+        "script=sys.argv.pop(1);runpy.run_path(script,run_name='__main__')"
+    )
+    args = [sys.executable, "-c", code, str(script)]
+    first_socket = tmp_path / "first.sock"
+    first = subprocess.Popen(args + ["--socket", str(first_socket), "--state", str(state),
+                                   "--project-root", "/backups/test"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        for _ in range(100):
+            if first_socket.is_socket() or first.poll() is not None:
+                break
+            time.sleep(0.02)
+        assert first_socket.is_socket() and first.poll() is None
+        second = subprocess.run(
+            args + ["--socket", str(tmp_path / "second.sock"), "--state", str(state),
+                    "--project-root", "/backups/test"], capture_output=True, timeout=5,
+        )
+        assert second.returncode != 0
+        assert b"BlockingIOError" in second.stderr
+        assert not (tmp_path / "second.sock").exists()
+    finally:
+        first.terminate()
+        first.communicate(timeout=5)
+        assert first.poll() is not None
+
+
+def test_ambiguous_refresh_remains_stopped_in_new_instance(tmp_path, monkeypatch):
+    module = load_resolver()
+    state = tmp_path / "state.json"
+    state.write_text('{"access_token":"synthetic","refresh_token":"synthetic",'
+                     '"expires_at":0}')
+    def save(path, value):
+        path.write_text(json.dumps(value))
+    monkeypatch.setattr(module, "atomic_save", save)
+    first = module.Resolver(state, "/backups/test")
+    def ambiguous(*args, **kwargs):
+        raise module.ResolverError("synthetic timeout")
+    first.request = ambiguous
+    with pytest.raises(module.ResolverError):
+        first.ensure_token()
+    second = module.Resolver(state, "/backups/test")
+    calls = []
+    second.request = lambda *args, **kwargs: calls.append(args)
+    with pytest.raises(module.ResolverError, match="refresh_requires_reconciliation"):
+        second.ensure_token()
+    assert not calls
+    assert state.with_suffix(".refresh-intent").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Linux durable token state contract")
+def test_successful_refresh_is_durable_and_clears_intent(tmp_path):
+    module = load_resolver()
+    state = tmp_path / "state.json"
+    state.write_text('{"access_token":"synthetic-old","refresh_token":"synthetic-old",'
+                     '"expires_at":0}')
+    resolver = module.Resolver(state, "/backups/test")
+    resolver.request = lambda *a, **k: {
+        "access_token": "synthetic-new", "refresh_token": "synthetic-new", "expires_in": 7200,
+    }
+    with module.state_lease(state):
+        resolver.ensure_token()
+    reread = json.loads(state.read_text())
+    assert reread == resolver.state and reread["access_token"] == "synthetic-new"
+    assert state.stat().st_mode & 0o777 == 0o600
+    assert not state.with_suffix(".refresh-intent").exists()

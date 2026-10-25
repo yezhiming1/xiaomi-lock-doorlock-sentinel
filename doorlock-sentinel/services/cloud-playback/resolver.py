@@ -4,11 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import socketserver
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path, PurePosixPath
 
@@ -20,6 +22,18 @@ class ResolverError(Exception):
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ResolverError("provider_redirect")
+
+
+@contextmanager
+def state_lease(path):
+    import fcntl
+
+    canonical = Path(path).resolve(strict=True)
+    if canonical.stat().st_nlink != 1:
+        raise ResolverError("state_hardlink_not_allowed")
+    with canonical.with_name(canonical.name + ".lock").open("a") as lease:
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield canonical
 
 
 def atomic_save(path, value):
@@ -136,7 +150,9 @@ class Resolver:
         if (
             parsed.scheme != "https" or not (parsed.hostname or "").endswith(".115cdn.net")
             or parsed.username or parsed.password or parsed.port not in (None, 443)
-            or any(ord(c) < 32 for c in url)
+            or "\\" in url or any(ord(c) < 33 for c in url)
+            or not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", p)
+                       for p in (parsed.hostname or "").split("."))
         ):
             raise ResolverError("untrusted_link")
         if len(self.cache) >= 1024:
@@ -181,14 +197,14 @@ def main():
     parser.add_argument("--project-root", required=True)
     args = parser.parse_args()
     path = Path(args.socket)
-    with path.with_suffix(".lock").open("a") as lease:
+    with state_lease(args.state) as state, path.with_suffix(".lock").open("a") as lease:
         fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # Only remove this exact stale socket after exclusive ownership is proven.
         if path.exists():
             if not path.is_socket():
                 raise RuntimeError("Unexpected socket-path object")
             path.unlink()
-        resolver = Resolver(args.state, args.project_root)
+        resolver = Resolver(state, args.project_root)
         with socketserver.UnixStreamServer(str(path), Handler) as server:
             server.resolver = resolver
             os.chmod(path, 0o660)

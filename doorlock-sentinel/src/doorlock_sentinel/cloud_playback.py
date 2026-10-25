@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import http.client
 import json
+import re
 import socket
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -15,7 +16,9 @@ def validate_playback_url(value: str) -> str:
         parsed.scheme != "https"
         or not host.endswith(".115cdn.net")
         or parsed.username or parsed.password or parsed.port not in (None, 443)
-        or any(ord(c) < 32 for c in value)
+        or "\\" in value or any(ord(c) < 33 for c in value)
+        or not all(re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", p)
+                   for p in host.split("."))
     ):
         raise ValueError("untrusted playback URL")
     return value

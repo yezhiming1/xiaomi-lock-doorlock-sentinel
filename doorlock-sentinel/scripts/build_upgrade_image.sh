@@ -27,9 +27,18 @@ if [ "$actual_source" != "$DOORLOCK_EXPECTED_SOURCE_COMMIT" ]; then
   exit 4
 fi
 
+build_base=${DOORLOCK_UPGRADE_BASE_IMAGE:-$PREDECESSOR_IMAGE}
+if [ "$build_base" != "$PREDECESSOR_IMAGE" ]; then
+  actual_base=$(docker image inspect "$build_base" --format '{{.Id}}')
+  if [ -z "${DOORLOCK_EXPECTED_BUILD_BASE_IMAGE_ID:-}" ] || [ "$actual_base" != "$DOORLOCK_EXPECTED_BUILD_BASE_IMAGE_ID" ]; then
+    printf '%s\n' 'UPGRADE_BUILD_FAIL alternate build base identity mismatch' >&2
+    exit 8
+  fi
+fi
+
 docker build \
   --pull=false \
-  --build-arg "PREDECESSOR_IMAGE=$PREDECESSOR_IMAGE" \
+  --build-arg "PREDECESSOR_IMAGE=$build_base" \
   --build-arg "DOORLOCK_SOURCE_REVISION=$actual_source" \
   --file "$ROOT/Dockerfile.upgrade" \
   --tag "$TARGET_IMAGE" \
