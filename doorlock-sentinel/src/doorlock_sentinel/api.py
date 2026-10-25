@@ -94,7 +94,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
         )
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; img-src 'self' data:; media-src 'self'; "
+            "default-src 'self'; img-src 'self' data:; "
+            "media-src 'self' https://*.115cdn.net; "
             "style-src 'self'; script-src 'self'; connect-src 'self'; "
             "frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         )

@@ -2,9 +2,9 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
-PREDECESSOR_IMAGE=doorlock-sentinel:0.1.5
-TARGET_IMAGE=doorlock-sentinel:0.1.6
-CONTRACT_CONTAINER=doorlock-sentinel-v0.1.6-contract
+PREDECESSOR_IMAGE=doorlock-sentinel:0.1.6
+TARGET_IMAGE=doorlock-sentinel:0.1.7
+CONTRACT_CONTAINER=doorlock-sentinel-v0.1.7-contract
 
 if [ -z "${DOORLOCK_EXPECTED_PREDECESSOR_IMAGE_ID:-}" ]; then
   printf '%s\n' 'UPGRADE_BUILD_FAIL expected predecessor image ID is required' >&2
@@ -27,9 +27,18 @@ if [ "$actual_source" != "$DOORLOCK_EXPECTED_SOURCE_COMMIT" ]; then
   exit 4
 fi
 
+build_base=${DOORLOCK_UPGRADE_BASE_IMAGE:-$PREDECESSOR_IMAGE}
+if [ "$build_base" != "$PREDECESSOR_IMAGE" ]; then
+  actual_base=$(docker image inspect "$build_base" --format '{{.Id}}')
+  if [ -z "${DOORLOCK_EXPECTED_BUILD_BASE_IMAGE_ID:-}" ] || [ "$actual_base" != "$DOORLOCK_EXPECTED_BUILD_BASE_IMAGE_ID" ]; then
+    printf '%s\n' 'UPGRADE_BUILD_FAIL alternate build base identity mismatch' >&2
+    exit 8
+  fi
+fi
+
 docker build \
   --pull=false \
-  --build-arg "PREDECESSOR_IMAGE=$PREDECESSOR_IMAGE" \
+  --build-arg "PREDECESSOR_IMAGE=$build_base" \
   --build-arg "DOORLOCK_SOURCE_REVISION=$actual_source" \
   --file "$ROOT/Dockerfile.upgrade" \
   --tag "$TARGET_IMAGE" \
@@ -37,7 +46,7 @@ docker build \
 
 label_version=$(docker image inspect "$TARGET_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.version"}}')
 label_revision=$(docker image inspect "$TARGET_IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')
-if [ "$label_version" != "0.1.6" ] || [ "$label_revision" != "$actual_source" ]; then
+if [ "$label_version" != "0.1.7" ] || [ "$label_revision" != "$actual_source" ]; then
   printf '%s\n' 'UPGRADE_BUILD_FAIL output image identity mismatch' >&2
   exit 5
 fi
@@ -49,7 +58,7 @@ fi
 
 docker run --rm --name "$CONTRACT_CONTAINER" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=32m \
   --entrypoint /opt/venv/bin/python "$TARGET_IMAGE" \
-  -c 'import importlib.metadata as m; import doorlock_sentinel as d; assert d.__version__ == m.version("doorlock-sentinel") == "0.1.6"'
+  -c 'import importlib.metadata as m; import doorlock_sentinel as d; assert d.__version__ == m.version("doorlock-sentinel") == "0.1.7"'
 
 if docker container inspect "$CONTRACT_CONTAINER" >/dev/null 2>&1; then
   printf '%s\n' 'UPGRADE_BUILD_FAIL contract container residue remains' >&2

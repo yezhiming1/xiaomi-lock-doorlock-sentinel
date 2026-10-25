@@ -60,6 +60,7 @@ if command -v docker >/dev/null 2>&1; then
   DOORLOCK_DATA_DIR="$WORK/data" \
   DOORLOCK_MODELS_DIR="$WORK/models" \
   DOORLOCK_SECRETS_DIR="$WORK/secrets" \
+  DOORLOCK_CLOUD_PLAYBACK_SOCKET_DIR="$WORK/cloud-playback" \
   DOORLOCK_DETECTOR_SHA256="$LOCKED_HASH" \
   DOORLOCK_RECOGNIZER_SHA256=4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43 \
   docker compose config --quiet

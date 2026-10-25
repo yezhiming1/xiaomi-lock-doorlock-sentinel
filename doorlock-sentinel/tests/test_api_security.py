@@ -263,7 +263,7 @@ def test_cluster_can_be_assigned_to_person_and_operation_is_localized(settings):
         assert cluster_id not in item["subject_label"]
 
 
-def test_cluster_review_includes_video_and_supports_byte_ranges(settings):
+def test_cluster_video_without_cloud_receipt_never_serves_local_range(settings):
     _migrate_for_test(settings)
     video_path = settings.data_dir / "review-sample.mp4"
     video_bytes = b"0123456789abcdef"
@@ -336,6 +336,6 @@ def test_cluster_review_includes_video_and_supports_byte_ranges(settings):
             sample["video_url"],
             headers={"Range": "bytes=0-3"},
         )
-        assert ranged.status_code == 206
-        assert ranged.content == video_bytes[:4]
-        assert ranged.headers["content-range"] == f"bytes 0-3/{len(video_bytes)}"
+        assert ranged.status_code == 409
+        assert video_bytes[:4] not in ranged.content
+        assert "content-range" not in ranged.headers
