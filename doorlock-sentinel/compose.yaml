@@ -2,7 +2,7 @@ services:
   doorlock-sentinel:
     build:
       context: .
-    image: doorlock-sentinel:0.1.6
+    image: doorlock-sentinel:0.1.7
     container_name: doorlock-sentinel
     restart: unless-stopped
     stop_grace_period: 45s
@@ -46,6 +46,7 @@ services:
       - ${DOORLOCK_INBOX_DIR:?set DOORLOCK_INBOX_DIR}:/inbox:ro
       - ${DOORLOCK_MODELS_DIR:-./models}:/models:ro
       - ${DOORLOCK_SECRETS_DIR:-./secrets}:/run/secrets:ro
+      - ${DOORLOCK_CLOUD_PLAYBACK_SOCKET_DIR:?set DOORLOCK_CLOUD_PLAYBACK_SOCKET_DIR}:/run/cloud-playback:ro
     ports:
       - "127.0.0.1:${DOORLOCK_HTTP_PORT:-18125}:8787"
     read_only: true

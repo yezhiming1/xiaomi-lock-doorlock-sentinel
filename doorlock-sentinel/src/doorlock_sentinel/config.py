@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     api_port: int = 8787
     public_base_url: str = "https://doorlock.example.invalid"
     trusted_hosts: str = "localhost,127.0.0.1"
+    cloud_playback_socket: Path = Path("/run/cloud-playback/resolver.sock")
 
     internal_api_secret: str | None = None
     internal_api_secret_file: Path | None = Path("/run/doorlock/secrets/internal_api_secret")

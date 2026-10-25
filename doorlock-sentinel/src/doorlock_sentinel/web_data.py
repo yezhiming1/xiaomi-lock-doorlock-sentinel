@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import mimetypes
 import shutil
 from collections.abc import Callable
@@ -7,13 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
 from . import __version__
 from .artifacts import safe_artifact_path
+from .cloud_playback import resolve_video
 from .models import (
     ArtifactManifest,
     AuditLog,
@@ -346,14 +348,35 @@ def event_detail(
     return _event_item(context, event, detail=True)
 
 
-@router.get("/artifacts/{artifact_id}")
+@router.get("/artifacts/{artifact_id}", response_model=None)
 def artifact(
     artifact_id: str,
+    request: Request,
     context: Annotated[AuthContext, Depends(authenticated)],
-) -> FileResponse:
+) -> FileResponse | RedirectResponse:
     row = context.database_session.get(ArtifactManifest, artifact_id)
     if not row:
         raise HTTPException(status_code=404, detail="文件记录不存在")
+    if row.artifact_type == "source_video":
+        receipt = context.database_session.scalar(
+            select(BackupReceipt).where(BackupReceipt.artifact_id == row.id)
+        )
+        if (
+            not receipt or receipt.state != "verified" or not receipt.remote_locator
+            or receipt.remote_sha256 != row.sha256
+            or receipt.remote_size_bytes != row.size_bytes
+        ):
+            raise HTTPException(status_code=409, detail="录像尚未完成115备份，暂时无法播放")
+        try:
+            target = resolve_video(
+                context.runtime.settings.cloud_playback_socket,
+                receipt.remote_locator, row.size_bytes, request.headers.get("user-agent", ""),
+            )
+        except (OSError, ValueError, KeyError, TypeError, http.client.HTTPException):
+            raise HTTPException(
+                status_code=503, detail="115播放服务暂时不可用，请稍后重试"
+            ) from None
+        return RedirectResponse(target, status_code=302, headers={"Cache-Control": "no-store"})
     try:
         path = safe_artifact_path(context.runtime.settings, Path(row.local_path))
     except ValueError:
