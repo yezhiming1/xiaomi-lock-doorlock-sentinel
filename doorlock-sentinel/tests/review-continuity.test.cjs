@@ -28,6 +28,22 @@ test("manual open and closed choices survive refresh and leaving people", async 
   await run('loadRoute()');
   assert.equal(run('state.pendingOpen'),true);
 });
+test("people starts with pending open and confirmed closed; refresh preserves both and reentry resets defaults", async () => {
+  const {nodes,run}=setup();
+  run('renderPeopleContent();renderPeople=async()=>renderPeopleContent();setHeader=()=>{};');
+  assert.ok(nodes.get('#content').innerHTML.includes('class="pending-disclosure" open'));
+  assert.ok(!nodes.get('#content').innerHTML.includes('class="confirmed-disclosure" open'));
+  run('$(".pending-disclosure").open=false;$(".confirmed-disclosure").open=true;');
+  await run('loadRoute()');
+  assert.ok(!nodes.get('#content').innerHTML.includes('class="pending-disclosure" open'));
+  assert.ok(nodes.get('#content').innerHTML.includes('class="confirmed-disclosure" open'));
+  run('location.hash="#events";renderEvents=async()=>{}');
+  await run('loadRoute()');
+  run('location.hash="#people"');
+  await run('loadRoute()');
+  assert.ok(nodes.get('#content').innerHTML.includes('class="pending-disclosure" open'));
+  assert.ok(!nodes.get('#content').innerHTML.includes('class="confirmed-disclosure" open'));
+});
 test("successful merge remembers target; cancel and failure do not replace it", async () => {
   const {nodes,run}=setup();
   const select=run('$("#modal-target")');
@@ -72,7 +88,8 @@ test("logout or expiry resets preferences and expiry during refresh cannot resto
   const select=run('$("#modal-target")');
   select.options=[{value:"person:neighbor"}]; select.value="person:neighbor";
   run('state.pendingOpen=true;state.lastMergeTarget="person:neighbor";showLogin()');
-  assert.equal(run('state.pendingOpen'),false);
+  assert.equal(run('state.pendingOpen'),true);
+  assert.equal(run('state.confirmedOpen'),false);
   assert.equal(run('state.lastMergeTarget'),"");
   run('state.csrf="synthetic";mutate=async()=>showLogin();mergeCluster("c1")');
   await run('state.modalHandler()');

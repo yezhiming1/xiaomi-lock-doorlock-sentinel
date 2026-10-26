@@ -1,5 +1,15 @@
 # 发布记录
 
+## V0.1.8 人物页默认状态候选
+
+NON_INSTALLER_RELEASE：前代 V0.1.7 可运行镜像归档 SHA256
+`4a6e7a88018a97d5b49f612c3dd5133e809789555d508d55236a050b5c5d06ba`。
+完整配置、秘密文件、源码和在线独立 SQLite 快照共 10 项已逐文件重读。
+回退使用私有恢复集的前代 Compose、NAS override、环境与镜像，保持活跃业务数据库；损坏时才使用独立快照。
+回退验收：V0.1.7 live/ready、双监督进程、原运行合同、数据库 integrity/FK 及认证人物页。
+目标仅为待确认默认展开、已确认默认折叠和已有三类单入口展示；不修改人物身份、学习、录像或备份。
+前端 21 项与 Ruff 通过；完整 Linux CI、目标运行和实际浏览器受影响路径待验证，未部署。
+
 ## V0.1.7 部署终态：115 直连播放
 
 DEPLOYED / RELEASE_GATE_OPEN；NON_INSTALLER_RELEASE。

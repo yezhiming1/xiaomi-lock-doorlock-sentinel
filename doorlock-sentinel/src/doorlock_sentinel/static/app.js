@@ -8,7 +8,8 @@ const state = {
   people: [],
   ownerName: "",
   clusters: [],
-  pendingOpen: false,
+  pendingOpen: true,
+  confirmedOpen: false,
   lastMergeTarget: "",
   modalHandler: null,
   modalRequest: 0,
@@ -112,7 +113,8 @@ function showLogin() {
   if ($("#person-viewer").open) $("#person-viewer").close();
   state.csrf = "";
   state.ownerName = "";
-  state.pendingOpen = false;
+  state.pendingOpen = true;
+  state.confirmedOpen = false;
   state.lastMergeTarget = "";
   $("#shell").hidden = true;
   $("#login").hidden = false;
@@ -298,7 +300,7 @@ function renderPeopleContent() {
   const clustersHtml = state.clusters.length
     ? `<details class="pending-disclosure"${state.pendingOpen ? " open" : ""}><summary><span class="pending-disclosure-title">待确认</span><span class="pending-disclosure-count">${state.clusters.length} 组</span><span class="pending-disclosure-hint">展开查看样本、录像和核对操作</span></summary><div class="pending-clusters" role="list">${state.clusters.map(clusterCard).join("")}</div></details>`
     : '<div class="empty"><strong>还没有待确认的人物</strong><p>清晰人脸会在多次出现后进入这里；不清晰画面不会被强行学习。</p><a class="button quiet" href="#operations">查看运行状态</a></div>';
-  content.innerHTML = `<section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">等待您的确认</h2><p>先核对样本和对应录像；不确定时保持未知。</p></div></div>${clustersHtml}</section><section class="people-section" aria-labelledby="people-heading"><div class="section-head"><div><h2 id="people-heading">已确认人物</h2><p>每个类别一个入口，展开查看人物与原有操作。</p></div><span class="section-count">${state.people.length} 人</span></div>${peopleHtml}</section>`;
+  content.innerHTML = `<section class="clusters-section" id="review-clusters" aria-labelledby="clusters-heading"><div class="section-head"><div><h2 id="clusters-heading">等待您的确认</h2><p>先核对样本和对应录像；不确定时保持未知。</p></div></div>${clustersHtml}</section><section class="people-section" aria-label="已确认人物"><details class="confirmed-disclosure"${state.confirmedOpen ? " open" : ""}><summary><span class="confirmed-disclosure-title">已确认人物</span><span class="pending-disclosure-count">${state.people.length} 人</span><span class="pending-disclosure-hint">展开按类别查看</span></summary><div class="confirmed-people">${peopleHtml}</div></details></section>`;
 }
 
 async function renderPeople() {
@@ -363,8 +365,16 @@ async function renderSettings() {
 
 async function loadRoute() {
   const pending = state.route === "people" && $(".pending-disclosure");
-  if (pending && $("#login").hidden) state.pendingOpen = pending.open;
+  const confirmed = state.route === "people" && $(".confirmed-disclosure");
+  if ($("#login").hidden) {
+    if (pending) state.pendingOpen = pending.open;
+    if (confirmed) state.confirmedOpen = confirmed.open;
+  }
   const route = location.hash.replace(/^#/, "") || "events";
+  if (route === "people" && state.route !== "people") {
+    state.pendingOpen = true;
+    state.confirmedOpen = false;
+  }
   state.route = routeCopy[route] ? route : "events";
   setHeader(state.route);
   content.setAttribute("aria-busy", "true");

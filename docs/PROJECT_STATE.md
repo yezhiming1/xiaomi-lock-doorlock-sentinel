@@ -1,5 +1,12 @@
 # 项目状态
 
+## V0.1.8 人物页默认状态候选
+
+本批 NON_INSTALLER_RELEASE。V0.1.7 镜像、配置、在线独立 SQLite 快照及源码共 10 项恢复集已校验。
+仅调整人物页默认待确认展开、已确认折叠；保留同页面刷新选择；三类仍各一入口且身份独立。
+21 项前端测试和 Ruff 通过；本机 Python 缺少 argon2，完整 Linux 回归交由 CI。
+部署和真实消费者验收尚未产生，当前生产仍为 V0.1.7。
+
 ## V0.1.7 云端直连已部署
 
 状态 DEPLOYED / RELEASE_GATE_OPEN；本批 NON_INSTALLER_RELEASE。
