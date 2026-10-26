@@ -182,3 +182,13 @@ button, a, summary, input, select { scroll-margin: 90px; }
 .category-maintenance { padding: 0 16px 16px; }
 .category-maintenance > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 #person-viewer-pagination { flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.confirmed-disclosure { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); }
+.confirmed-disclosure > summary { min-height: 88px; padding: 20px 24px; display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; }
+.confirmed-disclosure > summary::-webkit-details-marker { display: none; }
+.confirmed-disclosure > summary::after { content: ""; width: 8px; height: 8px; flex-shrink: 0; margin-left: auto; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); }
+.confirmed-disclosure[open] > summary::after { transform: rotate(225deg); }
+.confirmed-disclosure-title { font-size: 17px; font-weight: 750; }
+.confirmed-people { padding: 12px; border-top: 1px solid var(--rule); }
+@media (max-width: 600px) {
+  .confirmed-disclosure > summary { padding: 18px; flex-wrap: wrap; gap: 8px; }
+}

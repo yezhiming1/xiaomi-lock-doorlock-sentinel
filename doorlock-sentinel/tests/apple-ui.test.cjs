@@ -34,7 +34,7 @@ test("one entry per category, pending first, names escaped and actions retained"
   const {scope,node}=context();
   vm.runInContext('state.people=[{id:"a",relationship:"friend",display_name:"<script>bad</script>",matched_events:2,distinct_days:1},{id:"b",relationship:"friend",display_name:"Synthetic B",matched_events:3,distinct_days:2}]; renderPeopleContent()',scope);
   assert.equal((node.innerHTML.match(/class="person-category(?:"| )/g)||[]).length,10);
-  assert.ok(node.innerHTML.indexOf('id="review-clusters"')<node.innerHTML.indexOf('id="people-heading"'));
+  assert.ok(node.innerHTML.indexOf('id="review-clusters"')<node.innerHTML.indexOf('class="confirmed-disclosure"'));
   assert.ok(node.innerHTML.includes("&lt;script&gt;bad&lt;/script&gt;"));
   assert.ok(!node.innerHTML.includes("<script>"));
   assert.equal((node.innerHTML.match(/data-action="rename-person"/g)||[]).length,2);
